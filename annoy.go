@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/gansidui/priority_queue"
+	"github.com/k0kubun/pp"
 )
 
 type AnnoyIndex struct {
@@ -45,6 +46,61 @@ func (a *AnnoyIndex) AddItem(item int, w []float64) {
 	a.nItems = item + 1
 }
 
+func (a *AnnoyIndex) AddNode(w []float64) {
+
+	// 所属ノードを見つける
+	for _, root := range a.roots {
+		item := a.findBranchByVector(root, w)
+		found := a.get(item)
+		fmt.Printf("Found %d\n", item)
+		pp.Println(found)
+		// リーフノードであれば新しいノードを追加
+		if found.nDescendants == 1 {
+			fmt.Printf("pattern %s\n", "A")
+			n := a.get(-1)
+
+			n.children[0] = 0
+			n.children[1] = 0
+			n.nDescendants = 1
+			n.v = w
+
+			a.nItems++
+			a.nNodes++
+
+			a.makeTree([]int{item, len(a.nodes) - 1})
+		} else {
+			if len(found.children) < a.K {
+				fmt.Printf("pattern %s\n", "B")
+				// ノードに余裕があれば追加
+				n := a.get(-1)
+
+				n.children[0] = 0
+				n.children[1] = 0
+				n.nDescendants = 1
+				n.v = w
+
+				a.nItems++
+				a.nNodes++
+
+				found.nDescendants += 1
+				found.children = append(found.children, len(a.nodes)-1)
+			} else {
+				fmt.Printf("pattern %s\n", "C")
+				// ノードが最大であれば新しいノードを追加
+			}
+		}
+	}
+}
+
+func (a AnnoyIndex) findBranchByVector(item int, v []float64) int {
+	node := a.get(item)
+	if node.nDescendants == 1 || len(node.v) == 0 {
+		return item
+	}
+	side := a.D.side(node, v, a.f, a.random)
+	return a.findBranchByVector(node.children[side], v)
+}
+
 func (a *AnnoyIndex) Build(q int) {
 	if a.loaded {
 		return
@@ -78,7 +134,7 @@ func (a *AnnoyIndex) Build(q int) {
 
 func (a *AnnoyIndex) get(item int) *Node {
 	var node *Node
-	if len(a.nodes) <= item {
+	if len(a.nodes) <= item || item == -1 {
 		node = NewNode()
 		a.nodes = append(a.nodes, node)
 	} else {
@@ -118,6 +174,7 @@ func (a *AnnoyIndex) makeTree(indices []int) int {
 		side := a.D.side(m, n.v, a.f, a.random)
 		childrenIndices[side] = append(childrenIndices[side], j)
 	}
+
 	for len(childrenIndices[0]) == 0 || len(childrenIndices[1]) == 0 {
 		childrenIndices[0] = []int{}
 		childrenIndices[1] = []int{}
@@ -137,7 +194,6 @@ func (a *AnnoyIndex) makeTree(indices []int) int {
 	}
 	m.nDescendants = len(indices)
 	for side := 0; side < 2; side++ {
-		fmt.Printf("side %d ^ flip %d = %d\n", side, flip, side^flip)
 		m.children[side^flip] = a.makeTree(childrenIndices[side^flip])
 	}
 	item := a.nNodes
@@ -162,6 +218,25 @@ type Queue struct {
 
 func (q *Queue) Less(other interface{}) bool {
 	return q.priority < other.(*Queue).priority
+}
+
+func (a AnnoyIndex) Tree() {
+	for _, root := range a.roots {
+		a.tree(a.get(root), root, 0)
+	}
+}
+
+func (a AnnoyIndex) tree(node *Node, id, tab int) {
+	for i := 0; i < tab*2; i++ {
+		fmt.Print(" ")
+	}
+	fmt.Printf("%d [nDescendants: %d, v: %v]\n", id, node.nDescendants, node.v)
+	if node.nDescendants == 1 {
+	} else {
+		for _, child := range node.children {
+			a.tree(a.get(child), child, tab+1)
+		}
+	}
 }
 
 func (a AnnoyIndex) getAllNns(v []float64, n, search_k int) []int {
@@ -190,6 +265,9 @@ func (a AnnoyIndex) getAllNns(v []float64, n, search_k int) []int {
 			nns = append(nns, dst...)
 		} else {
 			margin := a.D.margin(nd, v, a.f)
+			fmt.Printf("%f:%d = %f\n", d, i, margin)
+			fmt.Printf("children[1] = %d\n", nd.children[1])
+			fmt.Printf("children[0] = %d\n", nd.children[0])
 			q.Push(&Queue{priority: math.Min(d, +margin), value: nd.children[1]})
 			q.Push(&Queue{priority: math.Min(d, -margin), value: nd.children[0]})
 		}
