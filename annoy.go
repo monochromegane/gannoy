@@ -86,7 +86,7 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 			parent.children = append(children, m)
 
 			if willDelete {
-				// found.ref = false
+				found.release()
 			}
 		}
 	}

@@ -28,6 +28,7 @@ type Node struct {
 	id           int
 	parent       int
 	children     []int
+	ref          bool
 	v            []float64
 }
 
@@ -37,8 +38,13 @@ func newNode() *Node {
 		id:           0,
 		parent:       -1,
 		children:     []int{0, 0},
+		ref:          true,
 		v:            []float64{},
 	}
+}
+
+func (n *Node) release() {
+	n.ref = false
 }
 
 func (n Node) isRoot() bool {
