@@ -3,7 +3,7 @@ package annoy
 import "math"
 
 type Distance interface {
-	create_split([]*Node, int, Random, *Node)
+	createSplit([]*Node, int, Random, *Node)
 	distance([]float64, []float64, int) float64
 	side(*Node, []float64, int, Random) int
 	margin(*Node, []float64, int) float64
@@ -12,7 +12,7 @@ type Distance interface {
 type Angular struct {
 }
 
-func (a Angular) create_split(nodes []*Node, f int, random Random, n *Node) {
+func (a Angular) createSplit(nodes []*Node, f int, random Random, n *Node) {
 	bestIv, bestJv := twoMeans(a, nodes, f, random, true)
 	for z := 0; z < f; z++ {
 		n.v = append(n.v, bestIv[z]-bestJv[z])
