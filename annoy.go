@@ -48,16 +48,33 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 		found := a.nodes.get(item)
 		fmt.Printf("Found %d\n", item)
 		pp.Println(found)
-		// リーフノードであれば新しいノードを追加
-		if found.isLeaf() {
-			fmt.Printf("pattern isLeaf\n")
-			org_parent := found.parent
-			idx, n := a.nodes.newNode()
-			n.id = id
-			n.v = w
-			a.nItems++
 
-			m := a.makeTree(org_parent, []int{item, idx})
+		org_parent := found.parent
+		idx, n := a.nodes.newNode()
+		n.id = id
+		n.v = w
+		a.nItems++
+
+		if found.isBucket() && len(found.children) < a.K {
+			// ノードに余裕があれば追加
+			fmt.Printf("pattern bucket\n")
+			n.parent = item
+			found.nDescendants++
+			found.children = append(found.children, idx)
+		} else {
+			// ノードが上限またはリーフノードであれば新しいノードを追加
+			willDelete := false
+			var indices []int
+			if found.isLeaf() {
+				fmt.Printf("pattern leaf node\n")
+				indices = []int{item, idx}
+			} else {
+				fmt.Printf("pattern full backet\n")
+				indices = append(found.children, idx)
+				willDelete = true
+			}
+
+			m := a.makeTree(org_parent, indices)
 			parent := a.nodes.get(org_parent)
 			parent.nDescendants++
 			children := []int{}
@@ -67,20 +84,9 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 				}
 			}
 			parent.children = append(children, m)
-		} else {
-			if len(found.children) < a.K {
-				fmt.Printf("pattern bucket\n")
-				// ノードに余裕があれば追加
-				idx, n := a.nodes.newNode()
-				n.id = id
-				n.v = w
-				n.parent = item
-				a.nItems++
-				found.nDescendants++
-				found.children = append(found.children, idx)
-			} else {
-				fmt.Printf("pattern full backet\n")
-				// ノードが最大であれば新しいノードを追加
+
+			if willDelete {
+				// found.ref = false
 			}
 		}
 	}
