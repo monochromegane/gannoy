@@ -20,7 +20,9 @@ func main() {
 
 	// pp.Println(annoy)
 	// pp.Print(annoy.GetNnsByItem(8, 5, -1))
-	annoy.AddNode(10, []float64{0.5, 0.5, 0.2})
+	// annoy.AddNode(10, []float64{0.5, 0.5, 0.2})
+
+	annoy.DeleteNode(9)
 
 	annoy.Tree()
 }

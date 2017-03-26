@@ -93,6 +93,47 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 	}
 }
 
+func (a *AnnoyIndex) DeleteNode(item int) {
+	node := a.nodes.get(item)
+	for _, root := range a.roots {
+		parent := a.nodes.get(node.parents[root])
+
+		if parent.isBucket() && len(parent.children) > 2 {
+			fmt.Printf("pattern bucket\n")
+			children := []int{}
+			for _, child := range parent.children {
+				if child != item {
+					children = append(children, child)
+				}
+			}
+			parent.nDescendants--
+			parent.children = children
+		} else {
+			fmt.Printf("pattern leaf node\n")
+			var other int
+			for _, child := range parent.children {
+				if child != item {
+					other = child
+				}
+			}
+			grandParent := a.nodes.get(parent.parents[root])
+			children := []int{}
+			for _, child := range grandParent.children {
+				if child == node.parents[root] {
+					children = append(children, other)
+				} else {
+					children = append(children, child)
+				}
+			}
+			grandParent.nDescendants--
+			grandParent.children = children
+			a.nodes.get(other).parents[root] = parent.parents[root]
+			parent.ref = false
+		}
+	}
+	node.ref = false
+}
+
 func (a AnnoyIndex) findBranchByVector(item int, v []float64) int {
 	node := a.nodes.get(item)
 	if node.isLeaf() || node.isBucket() {
