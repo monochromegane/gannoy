@@ -42,6 +42,11 @@ func (a *AnnoyIndex) AddItem(id int, w []float64) {
 
 func (a *AnnoyIndex) AddNode(id int, w []float64) {
 
+	idx, n := a.nodes.newNode()
+	n.id = id
+	n.v = w
+	a.nItems++
+
 	// 所属ノードを見つける
 	for _, root := range a.roots {
 		item := a.findBranchByVector(root, w)
@@ -50,10 +55,6 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 		pp.Println(found)
 
 		org_parent := found.parents[root]
-		idx, n := a.nodes.newNode()
-		n.id = id
-		n.v = w
-		a.nItems++
 
 		if found.isBucket() && len(found.children) < a.K {
 			// ノードに余裕があれば追加
