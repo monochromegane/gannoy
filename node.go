@@ -26,7 +26,7 @@ func (ns Nodes) size() int {
 type Node struct {
 	nDescendants int
 	id           int
-	parent       int
+	parents      map[int]int
 	children     []int
 	ref          bool
 	v            []float64
@@ -36,7 +36,7 @@ func newNode() *Node {
 	return &Node{
 		nDescendants: 1,
 		id:           0,
-		parent:       -1,
+		parents:      map[int]int{},
 		children:     []int{0, 0},
 		ref:          true,
 		v:            []float64{},
@@ -47,8 +47,8 @@ func (n *Node) release() {
 	n.ref = false
 }
 
-func (n Node) isRoot() bool {
-	return n.parent == -1
+func (n Node) isRoot(root int) bool {
+	return n.parents[root] == -1
 }
 
 func (n Node) isLeaf() bool {

@@ -49,7 +49,7 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 		fmt.Printf("Found %d\n", item)
 		pp.Println(found)
 
-		org_parent := found.parent
+		org_parent := found.parents[root]
 		idx, n := a.nodes.newNode()
 		n.id = id
 		n.v = w
@@ -58,7 +58,7 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 		if found.isBucket() && len(found.children) < a.K {
 			// ノードに余裕があれば追加
 			fmt.Printf("pattern bucket\n")
-			n.parent = item
+			n.parents[root] = item
 			found.nDescendants++
 			found.children = append(found.children, idx)
 		} else {
@@ -74,7 +74,7 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 				willDelete = true
 			}
 
-			m := a.makeTree(org_parent, indices)
+			m := a.makeTree(root, org_parent, indices)
 			parent := a.nodes.get(org_parent)
 			parent.nDescendants++
 			children := []int{}
@@ -118,25 +118,29 @@ func (a *AnnoyIndex) Build(q int) {
 		for i := 0; i < a.nItems; i++ {
 			indices[i] = i
 		}
-		a.roots = append(a.roots, a.makeTree(-1, indices))
+		a.roots = append(a.roots, a.makeTree(-1, -1, indices))
 	}
 }
 
-func (a *AnnoyIndex) makeTree(parent int, indices []int) int {
+func (a *AnnoyIndex) makeTree(root, parent int, indices []int) int {
+	r := root
+	if r == -1 {
+		r = parent
+	}
 	if len(indices) == 1 {
 		n := a.nodes.get(indices[0])
-		n.parent = parent
+		n.parents[r] = parent
 		return indices[0]
 	}
 
 	if len(indices) <= a.K {
 		item, m := a.nodes.newNode()
 		m.nDescendants = len(indices)
-		m.parent = parent
+		m.parents[r] = parent
 		m.children = indices
 		for _, child := range indices {
 			c := a.nodes.get(child)
-			c.parent = item
+			c.parents[r] = item
 		}
 		return item
 	}
@@ -150,7 +154,10 @@ func (a *AnnoyIndex) makeTree(parent int, indices []int) int {
 
 	item, m := a.nodes.newNode()
 	m.nDescendants = len(indices)
-	m.parent = parent
+	if root == -1 {
+		root = item
+	}
+	m.parents[root] = parent
 
 	a.D.createSplit(children, a.f, a.random, m)
 	for _, idx := range indices {
@@ -176,7 +183,7 @@ func (a *AnnoyIndex) makeTree(parent int, indices []int) int {
 		flip = 1
 	}
 	for side := 0; side < 2; side++ {
-		m.children[side^flip] = a.makeTree(item, childrenIndices[side^flip])
+		m.children[side^flip] = a.makeTree(root, item, childrenIndices[side^flip])
 	}
 
 	return item
@@ -198,18 +205,18 @@ func (q *Queue) Less(other interface{}) bool {
 
 func (a AnnoyIndex) Tree() {
 	for _, root := range a.roots {
-		a.tree(a.nodes.get(root), root, 0)
+		a.tree(root, a.nodes.get(root), root, 0)
 	}
 }
 
-func (a AnnoyIndex) tree(node *Node, id, tab int) {
+func (a AnnoyIndex) tree(root int, node *Node, id, tab int) {
 	for i := 0; i < tab*2; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Printf("%d (%d) [nDescendants: %d, v: %v]\n", id, node.parent, node.nDescendants, node.v)
+	fmt.Printf("%d (%d) [nDescendants: %d, v: %v]\n", id, node.parents[root], node.nDescendants, node.v)
 	if !node.isLeaf() {
 		for _, child := range node.children {
-			a.tree(a.nodes.get(child), child, tab+1)
+			a.tree(root, a.nodes.get(child), child, tab+1)
 		}
 	}
 }
