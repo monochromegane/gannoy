@@ -1,6 +1,10 @@
 package main
 
-import "github.com/monochromegane/annoy"
+import (
+	"fmt"
+
+	"github.com/monochromegane/annoy"
+)
 
 func main() {
 	annoy := annoy.NewAnnoyIndex(3, annoy.Angular{}, annoy.RandRandom{})
@@ -22,7 +26,11 @@ func main() {
 	// pp.Print(annoy.GetNnsByItem(8, 5, -1))
 	// annoy.AddNode(10, []float64{0.5, 0.5, 0.2})
 
-	annoy.DeleteNode(9)
+	// annoy.DeleteNode(9)
 
+	fmt.Printf("------------\n")
+
+	annoy.Save("test.ann")
+	annoy.Load("test.ann")
 	annoy.Tree()
 }

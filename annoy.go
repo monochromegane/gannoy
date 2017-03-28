@@ -1,8 +1,11 @@
 package annoy
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 
 	"github.com/gansidui/priority_queue"
@@ -229,6 +232,51 @@ func (a *AnnoyIndex) makeTree(root, parent int, indices []int) int {
 	}
 
 	return item
+}
+
+func (a AnnoyIndex) Save(name string) error {
+	file, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buf := &bytes.Buffer{}
+	for _, node := range a.nodes.nodes {
+		// 4bytes nDescendants
+		binary.Write(buf, binary.BigEndian, int32(node.nDescendants))
+
+		// 8bytes v in f
+		vec := make([]float64, a.f)
+		for i, v := range node.v {
+			vec[i] = float64(v)
+		}
+		binary.Write(buf, binary.BigEndian, vec)
+
+		// 4bytes children in K
+		children := make([]int32, a.K)
+		for i, child := range node.children {
+			children[i] = int32(child)
+		}
+		binary.Write(buf, binary.BigEndian, children)
+
+		file.Write(buf.Bytes())
+		buf.Reset()
+	}
+	return nil
+}
+
+func (a *AnnoyIndex) Load(name string) error {
+	file, err := os.Open(name)
+	if err != nil {
+		return err
+	}
+	a.nodes.load(file, a.f, a.K)
+	return nil
+}
+
+func (a AnnoyIndex) Get(item int) {
+	pp.Println(a.nodes.getFromFile(item))
 }
 
 func (a AnnoyIndex) GetNnsByItem(item, n, search_k int) []int {
