@@ -13,6 +13,7 @@ type Nodes struct {
 	file  *os.File
 	f     int
 	k     int
+	roots []int
 }
 
 func (ns Nodes) get(item int) *Node {
@@ -29,11 +30,35 @@ func (ns Nodes) get(item int) *Node {
 func (ns Nodes) getFromFile(item int) *Node {
 	node := newNode()
 	ns.file.Seek(ns.offset(item), 0)
+
+	var ref bool
+	b := make([]byte, 1)
+	ns.file.Read(b)
+	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &ref)
+	node.ref = ref
+
+	var fk int32
+	b = make([]byte, 4)
+	ns.file.Read(b)
+	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &fk)
+	node.fk = int(fk)
+
 	var nDescendants int32
-	b := make([]byte, 4)
+	b = make([]byte, 4)
 	ns.file.Read(b)
 	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &nDescendants)
 	node.nDescendants = int(nDescendants)
+
+	parents := make([]int32, len(ns.roots))
+	b = make([]byte, 4*len(ns.roots))
+	ns.file.Read(b)
+	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &parents)
+	nodeParents := make([]int, len(ns.roots))
+	for i, parent := range parents {
+		nodeParents[i] = int(parent)
+	}
+	node.parents = nodeParents
+
 	if node.nDescendants == 1 {
 		// leaf node
 		vec := make([]float64, ns.f)
@@ -78,14 +103,27 @@ func (ns *Nodes) load(file *os.File, f, k int) {
 	ns.file = file
 	ns.f = f
 	ns.k = k
+	for {
+		var root int32
+		b := make([]byte, 4)
+		_, err := ns.file.Read(b)
+		if err != nil {
+			break
+		}
+		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &root)
+		if root == -1 {
+			break
+		}
+		ns.roots = append(ns.roots, int(root))
+	}
 }
 
 func (ns Nodes) offset(item int) int64 {
-	return int64(item) * ns.nodeSize()
+	return int64((len(ns.roots)+1)*4) + (int64(item) * ns.nodeSize())
 }
 
 func (ns Nodes) nodeSize() int64 {
-	return int64(4 + 4*ns.k + 8*ns.f)
+	return int64(1 + 4 + 4 + 4*len(ns.roots) + 4*ns.k + 8*ns.f)
 }
 
 func (ns *Nodes) newNode() (int, *Node) {
@@ -100,8 +138,8 @@ func (ns Nodes) size() int {
 
 type Node struct {
 	nDescendants int
-	id           int
-	parents      map[int]int
+	fk           int
+	parents      []int
 	children     []int
 	ref          bool
 	v            []float64
@@ -110,8 +148,8 @@ type Node struct {
 func newNode() *Node {
 	return &Node{
 		nDescendants: 1,
-		id:           0,
-		parents:      map[int]int{},
+		fk:           0,
+		parents:      []int{},
 		children:     []int{0, 0},
 		ref:          true,
 		v:            []float64{},

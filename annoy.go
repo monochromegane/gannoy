@@ -21,6 +21,7 @@ type AnnoyIndex struct {
 	loaded bool
 	roots  []int
 	K      int
+	q      int
 }
 
 func NewAnnoyIndex(f int, distance Distance, random Random) AnnoyIndex {
@@ -38,7 +39,7 @@ func NewAnnoyIndex(f int, distance Distance, random Random) AnnoyIndex {
 
 func (a *AnnoyIndex) AddItem(id int, w []float64) {
 	_, n := a.nodes.newNode()
-	n.id = id
+	n.fk = id
 	n.v = w
 	a.nItems++
 }
@@ -46,12 +47,12 @@ func (a *AnnoyIndex) AddItem(id int, w []float64) {
 func (a *AnnoyIndex) AddNode(id int, w []float64) {
 
 	idx, n := a.nodes.newNode()
-	n.id = id
+	n.fk = id
 	n.v = w
 	a.nItems++
 
 	// 所属ノードを見つける
-	for _, root := range a.roots {
+	for root, _ := range a.roots {
 		item := a.findBranchByVector(root, w)
 		found := a.nodes.get(item)
 		fmt.Printf("Found %d\n", item)
@@ -98,7 +99,7 @@ func (a *AnnoyIndex) AddNode(id int, w []float64) {
 
 func (a *AnnoyIndex) DeleteNode(item int) {
 	node := a.nodes.get(item)
-	for _, root := range a.roots {
+	for root, _ := range a.roots {
 		parent := a.nodes.get(node.parents[root])
 
 		if parent.isBucket() && len(parent.children) > 2 {
@@ -150,7 +151,9 @@ func (a *AnnoyIndex) Build(q int) {
 	if a.loaded {
 		return
 	}
+	a.q = q
 
+	root := 0
 	for {
 		if q == -1 && a.nodes.size() >= a.nItems*2 {
 			break
@@ -163,29 +166,33 @@ func (a *AnnoyIndex) Build(q int) {
 		for i := 0; i < a.nItems; i++ {
 			indices[i] = i
 		}
-		a.roots = append(a.roots, a.makeTree(-1, -1, indices))
+		a.roots = append(a.roots, a.makeTree(root, -1, indices))
+		root++
 	}
 }
 
 func (a *AnnoyIndex) makeTree(root, parent int, indices []int) int {
-	r := root
-	if r == -1 {
-		r = parent
-	}
 	if len(indices) == 1 {
 		n := a.nodes.get(indices[0])
-		n.parents[r] = parent
+		if len(n.parents) == 0 {
+			n.parents = make([]int, a.q)
+		}
+		n.parents[root] = parent
 		return indices[0]
 	}
 
 	if len(indices) <= a.K {
 		item, m := a.nodes.newNode()
+		m.parents = make([]int, a.q)
 		m.nDescendants = len(indices)
-		m.parents[r] = parent
+		m.parents[root] = parent
 		m.children = indices
 		for _, child := range indices {
 			c := a.nodes.get(child)
-			c.parents[r] = item
+			if len(c.parents) == 0 {
+				c.parents = make([]int, a.q)
+			}
+			c.parents[root] = item
 		}
 		return item
 	}
@@ -198,10 +205,8 @@ func (a *AnnoyIndex) makeTree(root, parent int, indices []int) int {
 	childrenIndices := [2][]int{[]int{}, []int{}}
 
 	item, m := a.nodes.newNode()
+	m.parents = make([]int, a.q)
 	m.nDescendants = len(indices)
-	if root == -1 {
-		root = item
-	}
 	m.parents[root] = parent
 
 	a.D.createSplit(children, a.f, a.random, m)
@@ -242,9 +247,32 @@ func (a AnnoyIndex) Save(name string) error {
 	defer file.Close()
 
 	buf := &bytes.Buffer{}
+
+	// roots
+	for _, root := range a.roots {
+		binary.Write(buf, binary.BigEndian, int32(root))
+	}
+	binary.Write(buf, binary.BigEndian, int32(-1))
+	file.Write(buf.Bytes())
+	buf.Reset()
+
+	// nodes
 	for _, node := range a.nodes.nodes {
+		// 1bytes ref
+		binary.Write(buf, binary.BigEndian, node.ref)
+
+		// 4bytes foreign key
+		binary.Write(buf, binary.BigEndian, int32(node.fk))
+
 		// 4bytes nDescendants
 		binary.Write(buf, binary.BigEndian, int32(node.nDescendants))
+
+		// 4bytes parents
+		parents := make([]int32, len(node.parents))
+		for i, parent := range node.parents {
+			parents[i] = int32(parent)
+		}
+		binary.Write(buf, binary.BigEndian, parents)
 
 		// 8bytes v in f
 		vec := make([]float64, a.f)
@@ -294,8 +322,8 @@ func (q *Queue) Less(other interface{}) bool {
 }
 
 func (a AnnoyIndex) Tree() {
-	for _, root := range a.roots {
-		a.tree(root, a.nodes.get(root), root, 0)
+	for i, root := range a.roots {
+		a.tree(i, a.nodes.get(root), root, 0)
 	}
 }
 
