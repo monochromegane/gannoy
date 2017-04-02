@@ -99,7 +99,7 @@ func (ns Nodes) getFromFile(item int) *Node {
 	return node
 }
 
-func (ns *Nodes) load(file *os.File, f, k int) {
+func (ns *Nodes) load(file *os.File, f, k int) []int {
 	ns.file = file
 	ns.f = f
 	ns.k = k
@@ -116,6 +116,7 @@ func (ns *Nodes) load(file *os.File, f, k int) {
 		}
 		ns.roots = append(ns.roots, int(root))
 	}
+	return ns.roots
 }
 
 func (ns Nodes) offset(item int) int64 {

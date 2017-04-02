@@ -299,7 +299,7 @@ func (a *AnnoyIndex) Load(name string) error {
 	if err != nil {
 		return err
 	}
-	a.nodes.load(file, a.f, a.K)
+	a.roots = a.nodes.load(file, a.f, a.K)
 	return nil
 }
 
