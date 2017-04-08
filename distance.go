@@ -1,23 +1,26 @@
 package annoy
 
-import "math"
+import (
+	"math"
+)
 
 type Distance interface {
-	createSplit([]*Node, int, Random, *Node)
+	createSplit([]Node, int, Random, Node) Node
 	distance([]float64, []float64, int) float64
-	side(*Node, []float64, int, Random) int
-	margin(*Node, []float64, int) float64
+	side(Node, []float64, int, Random) int
+	margin(Node, []float64, int) float64
 }
 
 type Angular struct {
 }
 
-func (a Angular) createSplit(nodes []*Node, f int, random Random, n *Node) {
+func (a Angular) createSplit(nodes []Node, f int, random Random, n Node) Node {
 	bestIv, bestJv := twoMeans(a, nodes, f, random, true)
 	for z := 0; z < f; z++ {
 		n.v = append(n.v, bestIv[z]-bestJv[z])
 	}
-	normalize(n.v, f)
+	n.v = normalize(n.v, f)
+	return n
 }
 
 func (a Angular) distance(x, y []float64, f int) float64 {
@@ -34,7 +37,7 @@ func (a Angular) distance(x, y []float64, f int) float64 {
 	return 2.0
 }
 
-func (a Angular) side(n *Node, y []float64, f int, random Random) int {
+func (a Angular) side(n Node, y []float64, f int, random Random) int {
 	dot := a.margin(n, y, f)
 	if dot != 0.0 {
 		if dot > 0 {
@@ -46,7 +49,7 @@ func (a Angular) side(n *Node, y []float64, f int, random Random) int {
 	return random.flip()
 }
 
-func (a Angular) margin(n *Node, y []float64, f int) float64 {
+func (a Angular) margin(n Node, y []float64, f int) float64 {
 	dot := 0.0
 	for z := 0; z < f; z++ {
 		dot += n.v[z] * y[z]

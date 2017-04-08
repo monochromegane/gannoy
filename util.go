@@ -1,8 +1,10 @@
 package annoy
 
-import "math"
+import (
+	"math"
+)
 
-func twoMeans(distance Distance, nodes []*Node, f int, random Random, cosine bool) ([]float64, []float64) {
+func twoMeans(distance Distance, nodes []Node, f int, random Random, cosine bool) ([]float64, []float64) {
 	iteration_steps := 200
 	count := len(nodes)
 
@@ -51,11 +53,12 @@ func twoMeans(distance Distance, nodes []*Node, f int, random Random, cosine boo
 	return iv, jv
 }
 
-func normalize(v []float64, f int) {
+func normalize(v []float64, f int) []float64 {
 	norm := getNorm(v, f)
 	for z := 0; z < f; z++ {
 		v[z] /= norm
 	}
+	return v
 }
 
 func getNorm(v []float64, f int) float64 {
