@@ -67,7 +67,7 @@ func (a *AnnoyIndex) addAndBuild(id int, w []float64) {
 		org_parent := found.parents[index]
 		if found.isBucket() && len(found.children) < a.K {
 			// ノードに余裕があれば追加
-			fmt.Printf("pattern bucket\n")
+			// fmt.Printf("pattern bucket\n")
 			n.parents[index] = item
 			n.Save()
 			found.nDescendants++
@@ -78,10 +78,10 @@ func (a *AnnoyIndex) addAndBuild(id int, w []float64) {
 			willDelete := false
 			var indices []int
 			if found.isLeaf() {
-				fmt.Printf("pattern leaf node\n")
+				// fmt.Printf("pattern leaf node\n")
 				indices = []int{item, n.id}
 			} else {
-				fmt.Printf("pattern full backet\n")
+				// fmt.Printf("pattern full backet\n")
 				indices = append(found.children, n.id)
 				willDelete = true
 			}

@@ -39,19 +39,13 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 	// var wg sync.WaitGroup
-	// go func() {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		// wg.Add(1)
+		// go func() {
 		annoy.AddItem(10, []float64{rand.Float64(), rand.Float64(), rand.Float64()})
+		// 	wg.Done()
+		// }()
 	}
-	// wg.Done()
-	// }()
-	// go func() {
-	// 	for i := 0; i < 1000; i++ {
-	// 		annoy.AddItem(20, []float64{rand.Float64(), rand.Float64(), rand.Float64()})
-	// 	}
-	// 	wg.Done()
-	// }()
 	// wg.Wait()
 	annoy.Tree()
 

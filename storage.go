@@ -3,6 +3,7 @@ package annoy
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"os"
 )
 
@@ -70,49 +71,65 @@ func (m *Memory) Save(f, K, q int, roots []int, name string) error {
 }
 
 type File struct {
-	file *os.File
-	f    int
-	K    int
-	q    int
+	file       *os.File
+	f          int
+	K          int
+	q          int
+	findChan   chan findArgs
+	createChan chan createArgs
+	updateChan chan updateArgs
 }
 
 func (f *File) Create(n Node) (int, error) {
+	args := createArgs{node: n, result: make(chan createResult)}
+	f.createChan <- args
+	result := <-args.result
+	return result.index, result.err
+}
+
+func (f *File) create(file *os.File, n Node) (int, error) {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
-	f.file.Seek(0, os.SEEK_END)
+	file.Seek(0, io.SeekEnd)
 	id := f.nodeCount()
-	f.file.Write(buf.Bytes())
+	file.Write(buf.Bytes())
 	buf.Reset()
 	return id, nil
 }
 
 func (f *File) Find(index int) Node {
+	args := findArgs{index: index, result: make(chan Node)}
+	f.findChan <- args
+	return <-args.result
+}
+
+func (f *File) find(file *os.File, index int) Node {
 	node := Node{}
 	node.id = index
 	node.storage = f
-	f.file.Seek(f.offset(index), 0)
+	file.Seek(f.offset(index), 0)
 
 	var ref bool
 	b := make([]byte, 1)
-	f.file.Read(b)
+	file.Read(b)
 	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &ref)
 	node.ref = ref
 
 	var fk int32
 	b = make([]byte, 4)
-	f.file.Read(b)
+	file.Read(b)
 	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &fk)
 	node.fk = int(fk)
 
 	var nDescendants int32
 	b = make([]byte, 4)
-	f.file.Read(b)
+	file.Read(b)
 	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &nDescendants)
 	node.nDescendants = int(nDescendants)
 
 	parents := make([]int32, f.q)
 	b = make([]byte, 4*f.q)
-	f.file.Read(b)
+	file.Read(b)
 	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &parents)
 	nodeParents := make([]int, f.q)
 	for i, parent := range parents {
@@ -124,15 +141,15 @@ func (f *File) Find(index int) Node {
 		// leaf node
 		vec := make([]float64, f.f)
 		b = make([]byte, 8*f.f)
-		f.file.Read(b)
+		file.Read(b)
 		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &vec)
 		node.v = vec
 	} else if node.nDescendants <= f.K {
 		// bucket node
-		f.file.Seek(int64(8*f.f), 1) // skip v
+		file.Seek(int64(8*f.f), 1) // skip v
 		children := make([]int32, nDescendants)
 		b = make([]byte, 4*nDescendants)
-		f.file.Read(b)
+		file.Read(b)
 		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &children)
 		nodeChildren := make([]int, nDescendants)
 		for i, child := range children {
@@ -143,13 +160,13 @@ func (f *File) Find(index int) Node {
 		// other node
 		vec := make([]float64, f.f)
 		b = make([]byte, 8*f.f)
-		f.file.Read(b)
+		file.Read(b)
 		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &vec)
 		node.v = vec
 
 		children := make([]int32, 2)
 		b = make([]byte, 4*2)
-		f.file.Read(b)
+		file.Read(b)
 		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &children)
 		nodeChildren := make([]int, 2)
 		for i, child := range children {
@@ -161,10 +178,16 @@ func (f *File) Find(index int) Node {
 }
 
 func (f *File) Update(n Node) error {
+	args := updateArgs{node: n, result: make(chan error)}
+	f.updateChan <- args
+	return <-args.result
+}
+
+func (f *File) update(file *os.File, n Node) error {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
-	f.file.Seek(f.offset(n.id), 0)
-	f.file.Write(buf.Bytes())
+	file.Seek(f.offset(n.id), 0)
+	file.Write(buf.Bytes())
 	buf.Reset()
 	return nil
 }
@@ -227,6 +250,15 @@ func (f *File) Load(f_, k int, name string) []int {
 	f.f = f_
 	f.K = k
 
+	f.findChan = make(chan findArgs, 10)
+	for i := 0; i < 10; i++ {
+		go f.finder(name)
+	}
+	f.updateChan = make(chan updateArgs, 1)
+	go f.updater(name)
+	f.createChan = make(chan createArgs, 1)
+	go f.creator(name)
+
 	roots := []int{}
 	for {
 		var root int32
@@ -243,4 +275,49 @@ func (f *File) Load(f_, k int, name string) []int {
 	}
 	f.q = len(roots)
 	return roots
+}
+
+type findArgs struct {
+	index  int
+	result chan Node
+}
+
+func (f *File) finder(name string) {
+	file, _ := os.Open(name)
+	for args := range f.findChan {
+		args.result <- f.find(file, args.index)
+	}
+}
+
+type updateArgs struct {
+	node   Node
+	result chan error
+}
+
+func (f *File) updater(name string) {
+	file, _ := os.OpenFile(name, os.O_RDWR, 0)
+	for args := range f.updateChan {
+		args.result <- f.update(file, args.node)
+	}
+}
+
+type createArgs struct {
+	node   Node
+	result chan createResult
+}
+
+type createResult struct {
+	index int
+	err   error
+}
+
+func (f *File) creator(name string) {
+	file, _ := os.OpenFile(name, os.O_RDWR, 0)
+	for args := range f.createChan {
+		index, err := f.create(file, args.node)
+		args.result <- createResult{
+			index: index,
+			err:   err,
+		}
+	}
 }
