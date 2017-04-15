@@ -77,9 +77,7 @@ type File struct {
 	f          int
 	K          int
 	q          int
-	findChan   chan findArgs
 	createChan chan createArgs
-	updateChan chan updateArgs
 }
 
 func (f *File) Create(n Node) (int, error) {
@@ -92,41 +90,16 @@ func (f *File) Create(n Node) (int, error) {
 func (f *File) create(file *os.File, n Node) (int, error) {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
-
-	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  0,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_WRLCK,
-		Whence: io.SeekEnd,
-	})
-	if err != nil {
-		fmt.Printf("fcntl error %v\n", err)
-	}
-	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  0,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekEnd,
-	})
-
-	file.Seek(0, io.SeekEnd)
 	id := f.nodeCount()
 	file.Write(buf.Bytes())
-	buf.Reset()
 	return id, nil
 }
 
 func (f *File) Find(index int) Node {
-	args := findArgs{index: index, result: make(chan Node)}
-	f.findChan <- args
-	return <-args.result
-}
-
-func (f *File) find(file *os.File, index int) Node {
 	node := Node{}
 	node.id = index
 	node.storage = f
-	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  f.offset(index),
 		Len:    f.nodeSize(),
 		Type:   syscall.F_RDLCK,
@@ -135,36 +108,32 @@ func (f *File) find(file *os.File, index int) Node {
 	if err != nil {
 		fmt.Printf("fcntl error %v\n", err)
 	}
-	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  f.offset(index),
 		Len:    f.nodeSize(),
 		Type:   syscall.F_UNLCK,
 		Whence: io.SeekStart,
 	})
-	file.Seek(f.offset(index), 0)
+
+	b := make([]byte, f.nodeSize())
+	syscall.Pread(int(f.file.Fd()), b, f.offset(index))
+
+	buf := bytes.NewReader(b)
 
 	var ref bool
-	b := make([]byte, 1)
-	file.Read(b)
-	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &ref)
+	binary.Read(buf, binary.BigEndian, &ref)
 	node.ref = ref
 
 	var fk int32
-	b = make([]byte, 4)
-	file.Read(b)
-	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &fk)
+	binary.Read(buf, binary.BigEndian, &fk)
 	node.fk = int(fk)
 
 	var nDescendants int32
-	b = make([]byte, 4)
-	file.Read(b)
-	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &nDescendants)
+	binary.Read(buf, binary.BigEndian, &nDescendants)
 	node.nDescendants = int(nDescendants)
 
 	parents := make([]int32, f.q)
-	b = make([]byte, 4*f.q)
-	file.Read(b)
-	binary.Read(bytes.NewBuffer(b), binary.BigEndian, &parents)
+	binary.Read(buf, binary.BigEndian, &parents)
 	nodeParents := make([]int, f.q)
 	for i, parent := range parents {
 		nodeParents[i] = int(parent)
@@ -174,17 +143,13 @@ func (f *File) find(file *os.File, index int) Node {
 	if node.nDescendants == 1 {
 		// leaf node
 		vec := make([]float64, f.f)
-		b = make([]byte, 8*f.f)
-		file.Read(b)
-		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &vec)
+		binary.Read(buf, binary.BigEndian, &vec)
 		node.v = vec
 	} else if node.nDescendants <= f.K {
 		// bucket node
-		file.Seek(int64(8*f.f), 1) // skip v
+		buf.Seek(int64(8*f.f), io.SeekCurrent) // skip v
 		children := make([]int32, nDescendants)
-		b = make([]byte, 4*nDescendants)
-		file.Read(b)
-		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &children)
+		binary.Read(buf, binary.BigEndian, &children)
 		nodeChildren := make([]int, nDescendants)
 		for i, child := range children {
 			nodeChildren[i] = int(child)
@@ -193,15 +158,11 @@ func (f *File) find(file *os.File, index int) Node {
 	} else {
 		// other node
 		vec := make([]float64, f.f)
-		b = make([]byte, 8*f.f)
-		file.Read(b)
-		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &vec)
+		binary.Read(buf, binary.BigEndian, &vec)
 		node.v = vec
 
 		children := make([]int32, 2)
-		b = make([]byte, 4*2)
-		file.Read(b)
-		binary.Read(bytes.NewBuffer(b), binary.BigEndian, &children)
+		binary.Read(buf, binary.BigEndian, &children)
 		nodeChildren := make([]int, 2)
 		for i, child := range children {
 			nodeChildren[i] = int(child)
@@ -212,16 +173,10 @@ func (f *File) find(file *os.File, index int) Node {
 }
 
 func (f *File) Update(n Node) error {
-	args := updateArgs{node: n, result: make(chan error)}
-	f.updateChan <- args
-	return <-args.result
-}
-
-func (f *File) update(file *os.File, n Node) error {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
 
-	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  f.offset(n.id),
 		Len:    f.nodeSize(),
 		Type:   syscall.F_WRLCK,
@@ -230,15 +185,13 @@ func (f *File) update(file *os.File, n Node) error {
 	if err != nil {
 		fmt.Printf("fcntl error %v\n", err)
 	}
-	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  f.offset(n.id),
 		Len:    f.nodeSize(),
 		Type:   syscall.F_UNLCK,
 		Whence: io.SeekStart,
 	})
-	file.Seek(f.offset(n.id), io.SeekStart)
-	file.Write(buf.Bytes())
-	buf.Reset()
+	syscall.Pwrite(int(f.file.Fd()), buf.Bytes(), f.offset(n.id))
 	return nil
 }
 
@@ -300,12 +253,6 @@ func (f *File) Load(f_, k int, name string) []int {
 	f.f = f_
 	f.K = k
 
-	f.findChan = make(chan findArgs, 10)
-	for i := 0; i < 10; i++ {
-		go f.finder(name)
-	}
-	f.updateChan = make(chan updateArgs, 1)
-	go f.updater(name)
 	f.createChan = make(chan createArgs, 1)
 	go f.creator(name)
 
@@ -327,30 +274,6 @@ func (f *File) Load(f_, k int, name string) []int {
 	return roots
 }
 
-type findArgs struct {
-	index  int
-	result chan Node
-}
-
-func (f *File) finder(name string) {
-	file, _ := os.Open(name)
-	for args := range f.findChan {
-		args.result <- f.find(file, args.index)
-	}
-}
-
-type updateArgs struct {
-	node   Node
-	result chan error
-}
-
-func (f *File) updater(name string) {
-	file, _ := os.OpenFile(name, os.O_RDWR, 0)
-	for args := range f.updateChan {
-		args.result <- f.update(file, args.node)
-	}
-}
-
 type createArgs struct {
 	node   Node
 	result chan createResult
@@ -362,7 +285,7 @@ type createResult struct {
 }
 
 func (f *File) creator(name string) {
-	file, _ := os.OpenFile(name, os.O_RDWR, 0)
+	file, _ := os.OpenFile(name, os.O_RDWR|os.O_APPEND, 0644)
 	for args := range f.createChan {
 		index, err := f.create(file, args.node)
 		args.result <- createResult{
