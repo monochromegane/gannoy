@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/monochromegane/annoy"
@@ -35,18 +36,25 @@ func main() {
 	// annoy.Tree()
 	// pp.Print(annoy.GetNnsByItem(8, 5, -1))
 	// annoy.AddItem(10, []float64{0.5, 0.5, 0.2})
-	// annoy.Tree()
+	annoy.Tree()
 
 	rand.Seed(time.Now().UnixNano())
-	// var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		// wg.Add(1)
-		// go func() {
-		annoy.AddItem(10, []float64{rand.Float64(), rand.Float64(), rand.Float64()})
-		// 	wg.Done()
-		// }()
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			annoy.AddItem(10, []float64{rand.Float64(), rand.Float64(), rand.Float64()})
+			wg.Done()
+		}()
 	}
-	// wg.Wait()
+	// for i := 0; i < 100; i++ {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		pp.Print(annoy.GetNnsByItem(8, 5, -1))
+	// 		wg.Done()
+	// 	}()
+	// }
+	wg.Wait()
 	annoy.Tree()
 
 }

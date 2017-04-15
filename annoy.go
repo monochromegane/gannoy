@@ -9,15 +9,16 @@ import (
 )
 
 type AnnoyIndex struct {
-	f      int
-	D      Distance
-	random Random
-	nodes  Nodes
-	nItems int
-	loaded bool
-	roots  []int
-	K      int
-	q      int
+	f         int
+	D         Distance
+	random    Random
+	nodes     Nodes
+	nItems    int
+	loaded    bool
+	roots     []int
+	K         int
+	q         int
+	buildChan chan buildArgs
 }
 
 func NewAnnoyIndex(f int, distance Distance, random Random) AnnoyIndex {
@@ -29,7 +30,8 @@ func NewAnnoyIndex(f int, distance Distance, random Random) AnnoyIndex {
 		loaded: false,
 		roots:  []int{},
 		// K:      52,
-		K: 3,
+		K:         3,
+		buildChan: make(chan buildArgs),
 	}
 }
 
@@ -42,7 +44,7 @@ func (a *AnnoyIndex) AddItem(id int, w []float64) {
 		}
 	}
 	if a.loaded {
-		a.addAndBuild(id, w)
+		a.AddAndBuild(id, w)
 	} else {
 		node := a.nodes.NewNode()
 		node.v = w
@@ -51,18 +53,36 @@ func (a *AnnoyIndex) AddItem(id int, w []float64) {
 	}
 }
 
-func (a *AnnoyIndex) addAndBuild(id int, w []float64) {
+type buildArgs struct {
+	fk     int
+	w      []float64
+	result chan error
+}
+
+func (a *AnnoyIndex) AddAndBuild(fk int, w []float64) error {
+	args := buildArgs{fk: fk, w: w, result: make(chan error)}
+	a.buildChan <- args
+	return <-args.result
+}
+
+func (a *AnnoyIndex) builder() {
+	for args := range a.buildChan {
+		args.result <- a.addAndBuild(args.fk, args.w)
+	}
+}
+
+func (a *AnnoyIndex) addAndBuild(id int, w []float64) error {
 	n := a.nodes.NewNode()
 	n.fk = id
 	n.v = w
 	n.parents = make([]int, a.q)
 	n.Save()
+	fmt.Printf("id %d\n", n.id)
 	// 所属ノードを見つける
 	for index, root := range a.roots {
 		item := a.findBranchByVector(root, w)
 		found := a.nodes.GetNode(item)
-		// fmt.Printf("Found %d\n", item)
-		// pp.Println(found)
+		fmt.Printf("Found %d\n", item)
 
 		org_parent := found.parents[index]
 		if found.isBucket() && len(found.children) < a.K {
@@ -104,6 +124,7 @@ func (a *AnnoyIndex) addAndBuild(id int, w []float64) {
 			}
 		}
 	}
+	return nil
 }
 
 // func (a *AnnoyIndex) DeleteNode(item int) {
@@ -256,6 +277,7 @@ func (a *AnnoyIndex) Load(name string) error {
 	a.roots = a.nodes.Storage.(*File).Load(a.f, a.K, name)
 	a.loaded = true
 	a.q = len(a.roots)
+	go a.builder()
 	return nil
 }
 

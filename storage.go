@@ -3,8 +3,10 @@ package annoy
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 type Storage interface {
@@ -90,6 +92,23 @@ func (f *File) Create(n Node) (int, error) {
 func (f *File) create(file *os.File, n Node) (int, error) {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
+
+	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  0,
+		Len:    f.nodeSize(),
+		Type:   syscall.F_WRLCK,
+		Whence: io.SeekEnd,
+	})
+	if err != nil {
+		fmt.Printf("fcntl error %v\n", err)
+	}
+	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  0,
+		Len:    f.nodeSize(),
+		Type:   syscall.F_UNLCK,
+		Whence: io.SeekEnd,
+	})
+
 	file.Seek(0, io.SeekEnd)
 	id := f.nodeCount()
 	file.Write(buf.Bytes())
@@ -107,6 +126,21 @@ func (f *File) find(file *os.File, index int) Node {
 	node := Node{}
 	node.id = index
 	node.storage = f
+	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  f.offset(index),
+		Len:    f.nodeSize(),
+		Type:   syscall.F_RDLCK,
+		Whence: io.SeekStart,
+	})
+	if err != nil {
+		fmt.Printf("fcntl error %v\n", err)
+	}
+	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  f.offset(index),
+		Len:    f.nodeSize(),
+		Type:   syscall.F_UNLCK,
+		Whence: io.SeekStart,
+	})
 	file.Seek(f.offset(index), 0)
 
 	var ref bool
@@ -186,7 +220,23 @@ func (f *File) Update(n Node) error {
 func (f *File) update(file *os.File, n Node) error {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
-	file.Seek(f.offset(n.id), 0)
+
+	err := syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  f.offset(n.id),
+		Len:    f.nodeSize(),
+		Type:   syscall.F_WRLCK,
+		Whence: io.SeekStart,
+	})
+	if err != nil {
+		fmt.Printf("fcntl error %v\n", err)
+	}
+	defer syscall.FcntlFlock(file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  f.offset(n.id),
+		Len:    f.nodeSize(),
+		Type:   syscall.F_UNLCK,
+		Whence: io.SeekStart,
+	})
+	file.Seek(f.offset(n.id), io.SeekStart)
 	file.Write(buf.Bytes())
 	buf.Reset()
 	return nil
