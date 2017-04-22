@@ -17,7 +17,6 @@ func (ns Nodes) newNode() Node {
 
 		nDescendants: 1,
 		id:           -1,
-		fk:           -1,
 		parents:      []int{},
 		children:     []int{0, 0},
 		v:            []float64{},
@@ -36,7 +35,6 @@ type Node struct {
 
 	nDescendants int
 	id           int
-	fk           int
 	parents      []int
 	children     []int
 	v            []float64

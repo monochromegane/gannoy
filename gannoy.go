@@ -16,6 +16,7 @@ import (
 
 type GannoyIndex struct {
 	meta      *os.File
+	maps      Maps
 	tree      int
 	dim       int
 	distance  Distance
@@ -25,22 +26,26 @@ type GannoyIndex struct {
 	buildChan chan buildArgs
 }
 
-func NewGannoyIndex(tree, dim int, filename string, distance Distance, random Random) GannoyIndex {
-	_, err := os.Stat(filename)
+func NewGannoyIndex(tree, dim int, database string, distance Distance, random Random) GannoyIndex {
+	ann := database + ".tree"
+	maps := database + ".map"
+
+	_, err := os.Stat(ann)
 	if err != nil {
-		initializeRoots(filename, tree)
+		initializeRoots(ann, tree)
 	}
-	meta := loadMeta(filename)
+	meta := loadMeta(ann)
 
 	K := 3
 	gannoy := GannoyIndex{
 		meta:      meta,
+		maps:      newMaps(maps),
 		tree:      tree,
 		dim:       dim,
 		distance:  distance,
 		random:    random,
 		K:         K,
-		nodes:     newNodes(filename, tree, dim, K),
+		nodes:     newNodes(ann, tree, dim, K),
 		buildChan: make(chan buildArgs, 1),
 	}
 	go gannoy.builder()
@@ -59,12 +64,17 @@ func (g *GannoyIndex) AddItem(id int, w []float64) error {
 	return <-args.result
 }
 
-func (g GannoyIndex) GetNnsByItem(item, n, searchK int) []int {
-	m := g.nodes.getNode(item)
+func (g GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
+	m := g.nodes.getNode(g.maps.getIndex(id))
 	if !m.isLeaf() {
 		return []int{}
 	}
-	return g.getAllNns(m.v, n, searchK)
+	indices := g.getAllNns(m.v, n, searchK)
+	ids := make([]int, len(indices))
+	for i, index := range indices {
+		ids[i] = g.maps.getId(index)
+	}
+	return ids
 }
 
 func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
@@ -127,7 +137,6 @@ func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 
 func (g *GannoyIndex) addItem(id int, w []float64) error {
 	n := g.nodes.newNode()
-	n.fk = id
 	n.v = w
 	n.parents = make([]int, g.tree)
 	err := n.save()
@@ -157,6 +166,7 @@ func (g *GannoyIndex) addItem(id int, w []float64) error {
 
 	wg.Wait()
 	close(buildChan)
+	g.maps.add(n.id, id)
 
 	return nil
 }
