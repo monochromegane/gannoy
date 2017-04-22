@@ -1,32 +1,17 @@
-package annoy
+package gannoy
 
 type Nodes struct {
 	Storage
 }
 
-type Node struct {
-	storage Storage
-
-	nDescendants int
-	id           int
-	fk           int
-	parents      []int
-	children     []int
-	v            []float64
-	ref          bool
-
-	isNewRecord bool
+func newNodes(filename string, tree, dim, K int) Nodes {
+	// TODO Switch storage by parameter
+	return Nodes{
+		Storage: newFile(filename, tree, dim, K),
+	}
 }
 
-func (n Node) isLeaf() bool {
-	return n.nDescendants == 1
-}
-
-func (n Node) isBucket() bool {
-	return len(n.v) == 0
-}
-
-func (ns Nodes) NewNode() Node {
+func (ns Nodes) newNode() Node {
 	return Node{
 		storage: ns.Storage,
 
@@ -42,25 +27,58 @@ func (ns Nodes) NewNode() Node {
 	}
 }
 
-func (ns Nodes) GetNode(index int) Node {
+func (ns Nodes) getNode(index int) Node {
 	return ns.Storage.Find(index)
 }
 
-func (n *Node) Save() bool {
-	if n.isNewRecord {
-		id, _ := n.storage.Create(*n)
-		n.id = id
-		n.isNewRecord = false
-		return true
-	} else {
-		n.storage.Update(*n)
-		return true
-	}
-	return true
+type Node struct {
+	storage Storage
+
+	nDescendants int
+	id           int
+	fk           int
+	parents      []int
+	children     []int
+	v            []float64
+	ref          bool
+	isNewRecord  bool
 }
 
-func (n *Node) Destroy() bool {
-	n.storage.Delete(*n)
+func (n Node) isLeaf() bool {
+	return n.nDescendants == 1
+}
+
+func (n Node) isBucket() bool {
+	return len(n.v) == 0
+}
+
+func (n Node) isRoot(index int) bool {
+	return n.parents[index] == -1
+}
+
+func (n *Node) save() error {
+	if n.isNewRecord {
+		id, err := n.storage.Create(*n)
+		if err != nil {
+			return err
+		}
+		n.id = id
+		n.isNewRecord = false
+		return nil
+	} else {
+		return n.storage.Update(*n)
+	}
+}
+
+func (n *Node) updateParents(index, parent int) error {
+	return n.storage.UpdateParent(n.id, index, parent)
+}
+
+func (n *Node) destroy() error {
+	err := n.storage.Delete(*n)
+	if err != nil {
+		return err
+	}
 	n.ref = false
-	return true
+	return nil
 }

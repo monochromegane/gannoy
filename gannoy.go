@@ -1,0 +1,391 @@
+package gannoy
+
+import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"sort"
+	"sync"
+	"syscall"
+
+	"github.com/gansidui/priority_queue"
+)
+
+type GannoyIndex struct {
+	meta      *os.File
+	tree      int
+	dim       int
+	distance  Distance
+	random    Random
+	nodes     Nodes
+	K         int
+	buildChan chan buildArgs
+}
+
+func NewGannoyIndex(tree, dim int, filename string, distance Distance, random Random) GannoyIndex {
+	_, err := os.Stat(filename)
+	if err != nil {
+		initializeRoots(filename, tree)
+	}
+	meta := loadMeta(filename)
+
+	K := 3
+	gannoy := GannoyIndex{
+		meta:      meta,
+		tree:      tree,
+		dim:       dim,
+		distance:  distance,
+		random:    random,
+		K:         K,
+		nodes:     newNodes(filename, tree, dim, K),
+		buildChan: make(chan buildArgs, 1),
+	}
+	go gannoy.builder()
+	return gannoy
+}
+
+func (g GannoyIndex) Tree() {
+	for i, root := range g.roots() {
+		g.walk(i, g.nodes.getNode(root), root, 0)
+	}
+}
+
+func (g *GannoyIndex) AddItem(id int, w []float64) error {
+	args := buildArgs{id: id, w: w, result: make(chan error)}
+	g.buildChan <- args
+	return <-args.result
+}
+
+func (g GannoyIndex) GetNnsByItem(item, n, searchK int) []int {
+	m := g.nodes.getNode(item)
+	if !m.isLeaf() {
+		return []int{}
+	}
+	return g.getAllNns(m.v, n, searchK)
+}
+
+func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
+	if searchK == -1 {
+		searchK = n * g.tree
+	}
+
+	q := priority_queue.New()
+	for _, root := range g.roots() {
+		q.Push(&Queue{priority: math.Inf(1), value: root})
+	}
+
+	nns := []int{}
+	for len(nns) < searchK && q.Len() > 0 {
+		top := q.Top().(*Queue)
+		d := top.priority
+		i := top.value
+
+		nd := g.nodes.getNode(i)
+		q.Pop()
+		if nd.isLeaf() {
+			nns = append(nns, i)
+		} else if nd.nDescendants <= g.K {
+			dst := nd.children
+			nns = append(nns, dst...)
+		} else {
+			margin := g.distance.margin(nd, v, g.dim)
+			q.Push(&Queue{priority: math.Min(d, +margin), value: nd.children[1]})
+			q.Push(&Queue{priority: math.Min(d, -margin), value: nd.children[0]})
+		}
+	}
+
+	sort.Ints(nns)
+	nnsDist := []Dist{}
+	last := -1
+	for _, j := range nns {
+		if j == last {
+			continue
+		}
+		last = j
+		nnsDist = append(nnsDist, Dist{distance: g.distance.distance(v, g.nodes.getNode(j).v, g.dim), item: j})
+	}
+
+	m := len(nnsDist)
+	p := m
+	if n < m {
+		p = n
+	}
+
+	result := []int{}
+	sort.Slice(nnsDist, func(i, j int) bool {
+		return nnsDist[i].distance < nnsDist[j].distance
+	})
+	for i := 0; i < p; i++ {
+		result = append(result, nnsDist[i].item)
+	}
+
+	return result
+}
+
+func (g *GannoyIndex) addItem(id int, w []float64) error {
+	n := g.nodes.newNode()
+	n.fk = id
+	n.v = w
+	n.parents = make([]int, g.tree)
+	err := n.save()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("id %d\n", n.id)
+
+	var wg sync.WaitGroup
+	wg.Add(g.tree)
+	buildChan := make(chan int, g.tree)
+	worker := func(n Node) {
+		for index := range buildChan {
+			fmt.Printf("root: %d\n", g.roots()[index])
+			g.build(index, g.roots()[index], n)
+			wg.Done()
+		}
+	}
+
+	for i := 0; i < 3; i++ {
+		go worker(n)
+	}
+
+	for index, _ := range g.roots() {
+		buildChan <- index
+	}
+
+	wg.Wait()
+	close(buildChan)
+
+	return nil
+}
+
+func (g *GannoyIndex) build(index, root int, n Node) {
+	if root == -1 {
+		// 最初のノード
+		n.parents[index] = -1
+		n.save()
+		g.updateRoot(index, n.id)
+		return
+	}
+	item := g.findBranchByVector(root, n.v)
+	found := g.nodes.getNode(item)
+	fmt.Printf("Found %d\n", item)
+
+	org_parent := found.parents[index]
+	if found.isBucket() && len(found.children) < g.K {
+		// ノードに余裕があれば追加
+		fmt.Printf("pattern bucket\n")
+		n.updateParents(index, item)
+		found.nDescendants++
+		found.children = append(found.children, n.id)
+		found.save()
+	} else {
+		// ノードが上限またはリーフノードであれば新しいノードを追加
+		willDelete := false
+		var indices []int
+		if found.isLeaf() {
+			fmt.Printf("pattern leaf node\n")
+			indices = []int{item, n.id}
+		} else {
+			fmt.Printf("pattern full backet\n")
+			indices = append(found.children, n.id)
+			willDelete = true
+		}
+
+		m := g.makeTree(index, org_parent, indices)
+		fmt.Printf("m: %d, org_parent: %d\n", m, org_parent)
+		if org_parent == -1 {
+			// rootノードの入れ替え
+			g.updateRoot(index, m)
+		} else {
+			parent := g.nodes.getNode(org_parent)
+			parent.nDescendants++
+			children := []int{}
+			for _, child := range parent.children {
+				if child != item {
+					children = append(children, child)
+				}
+			}
+			parent.children = append(children, m)
+			parent.save()
+
+		}
+		if willDelete {
+			found.destroy()
+		}
+	}
+}
+
+func (g GannoyIndex) findBranchByVector(index int, v []float64) int {
+	node := g.nodes.getNode(index)
+	if node.isLeaf() || node.isBucket() {
+		return index
+	}
+	side := g.distance.side(node, v, g.dim, g.random)
+	return g.findBranchByVector(node.children[side], v)
+}
+
+func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
+	if len(indices) == 1 {
+		n := g.nodes.getNode(indices[0])
+		if len(n.parents) == 0 {
+			n.parents = make([]int, g.tree)
+		}
+		n.updateParents(root, parent)
+		return indices[0]
+	}
+
+	if len(indices) <= g.K {
+		m := g.nodes.newNode()
+		m.parents = make([]int, g.tree)
+		m.nDescendants = len(indices)
+		m.parents[root] = parent
+		m.children = indices
+		m.save()
+		for _, child := range indices {
+			c := g.nodes.getNode(child)
+			if len(c.parents) == 0 {
+				c.parents = make([]int, g.tree)
+			}
+			c.updateParents(root, m.id)
+		}
+		return m.id
+	}
+
+	children := make([]Node, len(indices))
+	for i, idx := range indices {
+		children[i] = g.nodes.getNode(idx)
+	}
+
+	childrenIndices := [2][]int{[]int{}, []int{}}
+
+	m := g.nodes.newNode()
+	m.parents = make([]int, g.tree)
+	m.nDescendants = len(indices)
+	m.parents[root] = parent
+
+	m = g.distance.createSplit(children, g.dim, g.random, m)
+	for _, idx := range indices {
+		n := g.nodes.getNode(idx)
+		side := g.distance.side(m, n.v, g.dim, g.random)
+		childrenIndices[side] = append(childrenIndices[side], idx)
+	}
+
+	for len(childrenIndices[0]) == 0 || len(childrenIndices[1]) == 0 {
+		childrenIndices[0] = []int{}
+		childrenIndices[1] = []int{}
+		for z := 0; z < g.dim; z++ {
+			m.v[z] = 0.0
+		}
+		for _, idx := range indices {
+			side := g.random.flip()
+			childrenIndices[side] = append(childrenIndices[side], idx)
+		}
+	}
+
+	var flip int
+	if len(childrenIndices[0]) > len(childrenIndices[1]) {
+		flip = 1
+	}
+
+	m.save()
+	for side := 0; side < 2; side++ {
+		m.children[side^flip] = g.makeTree(root, m.id, childrenIndices[side^flip])
+	}
+	m.save()
+
+	return m.id
+}
+
+func (g *GannoyIndex) roots() []int {
+	err := syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  0,
+		Len:    int64(g.tree * 4),
+		Type:   syscall.F_RDLCK,
+		Whence: io.SeekStart,
+	})
+	if err != nil {
+		fmt.Printf("fcntl error %v\n", err)
+	}
+	defer syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  0,
+		Len:    int64(g.tree * 4),
+		Type:   syscall.F_UNLCK,
+		Whence: io.SeekStart,
+	})
+
+	b := make([]byte, g.tree*4)
+	syscall.Pread(int(g.meta.Fd()), b, 0)
+	buf := bytes.NewReader(b)
+	roots := make([]int32, g.tree)
+	binary.Read(buf, binary.BigEndian, &roots)
+	result := make([]int, g.tree)
+	for i, r := range roots {
+		result[i] = int(r)
+	}
+	return result
+}
+
+func (g *GannoyIndex) updateRoot(index, root int) error {
+	offset := int64(index * 4)
+	err := syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  offset,
+		Len:    4,
+		Type:   syscall.F_WRLCK,
+		Whence: io.SeekStart,
+	})
+	if err != nil {
+		return err
+	}
+	defer syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
+		Start:  offset,
+		Len:    4,
+		Type:   syscall.F_UNLCK,
+		Whence: io.SeekStart,
+	})
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.BigEndian, int32(root))
+	_, err = syscall.Pwrite(int(g.meta.Fd()), buf.Bytes(), offset)
+	return err
+}
+
+type buildArgs struct {
+	id     int
+	w      []float64
+	result chan error
+}
+
+func (g *GannoyIndex) builder() {
+	for args := range g.buildChan {
+		args.result <- g.addItem(args.id, args.w)
+	}
+}
+
+func initializeRoots(filename string, tree int) {
+	f, _ := os.Create(filename)
+	defer f.Close()
+	roots := make([]int32, tree)
+	for i, _ := range roots {
+		roots[i] = int32(-1)
+	}
+	binary.Write(f, binary.BigEndian, roots)
+}
+
+func loadMeta(filename string) *os.File {
+	file, _ := os.OpenFile(filename, os.O_RDWR, 0)
+	return file
+}
+
+func (g GannoyIndex) walk(root int, node Node, id, tab int) {
+	for i := 0; i < tab*2; i++ {
+		fmt.Print(" ")
+	}
+	fmt.Printf("%d (%d) [nDescendants: %d, v: %v]\n", id, node.parents[root], node.nDescendants, node.v)
+	if !node.isLeaf() {
+		for _, child := range node.children {
+			g.walk(root, g.nodes.getNode(child), child, tab+1)
+		}
+	}
+}

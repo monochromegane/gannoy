@@ -1,4 +1,4 @@
-package annoy
+package gannoy
 
 import (
 	"math/rand"
