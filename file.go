@@ -19,6 +19,12 @@ type File struct {
 }
 
 func newFile(filename string, tree, dim, K int) *File {
+	_, err := os.Stat(filename)
+	if err != nil {
+		f, _ := os.Create(filename)
+		f.Close()
+	}
+
 	file, _ := os.OpenFile(filename, os.O_RDWR, 0)
 	appendFile, _ := os.OpenFile(filename, os.O_RDWR|os.O_APPEND, 0)
 
@@ -179,13 +185,13 @@ func (f *File) Delete(n Node) error {
 }
 
 func (f File) offset(item int) int64 {
-	return int64((f.tree)*4) + (int64(item) * f.nodeSize())
+	return (int64(item) * f.nodeSize())
 }
 
 func (f File) nodeCount() int {
 	stat, _ := f.file.Stat()
 	size := stat.Size()
-	return int((size - int64((f.tree)*4)) / f.nodeSize())
+	return int(size / f.nodeSize())
 }
 
 func (f File) nodeSize() int64 {

@@ -1,21 +1,16 @@
 package gannoy
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
-	"os"
 	"sort"
 	"sync"
-	"syscall"
 
 	"github.com/gansidui/priority_queue"
 )
 
 type GannoyIndex struct {
-	meta      *os.File
+	meta      meta
 	maps      Maps
 	tree      int
 	dim       int
@@ -26,17 +21,20 @@ type GannoyIndex struct {
 	buildChan chan buildArgs
 }
 
-func NewGannoyIndex(tree, dim int, database string, distance Distance, random Random) GannoyIndex {
-	ann := database + ".tree"
-	maps := database + ".map"
+func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIndex, error) {
 
-	_, err := os.Stat(ann)
+	meta, err := loadMeta(metaFile)
 	if err != nil {
-		initializeRoots(ann, tree)
+		return GannoyIndex{}, err
 	}
-	meta := loadMeta(ann)
+	tree := meta.tree
+	dim := meta.dim
+
+	ann := meta.treePath()
+	maps := meta.mapPath()
 
 	K := 3
+	// K := 50
 	gannoy := GannoyIndex{
 		meta:      meta,
 		maps:      newMaps(maps),
@@ -49,11 +47,11 @@ func NewGannoyIndex(tree, dim int, database string, distance Distance, random Ra
 		buildChan: make(chan buildArgs, 1),
 	}
 	go gannoy.builder()
-	return gannoy
+	return gannoy, nil
 }
 
 func (g GannoyIndex) Tree() {
-	for i, root := range g.roots() {
+	for i, root := range g.meta.roots() {
 		g.walk(i, g.nodes.getNode(root), root, 0)
 	}
 }
@@ -83,7 +81,7 @@ func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 	}
 
 	q := priority_queue.New()
-	for _, root := range g.roots() {
+	for _, root := range g.meta.roots() {
 		q.Push(&Queue{priority: math.Inf(1), value: root})
 	}
 
@@ -143,15 +141,15 @@ func (g *GannoyIndex) addItem(id int, w []float64) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("id %d\n", n.id)
+	// fmt.Printf("id %d\n", n.id)
 
 	var wg sync.WaitGroup
 	wg.Add(g.tree)
 	buildChan := make(chan int, g.tree)
 	worker := func(n Node) {
 		for index := range buildChan {
-			fmt.Printf("root: %d\n", g.roots()[index])
-			g.build(index, g.roots()[index], n)
+			// fmt.Printf("root: %d\n", g.meta.roots()[index])
+			g.build(index, g.meta.roots()[index], n)
 			wg.Done()
 		}
 	}
@@ -160,7 +158,7 @@ func (g *GannoyIndex) addItem(id int, w []float64) error {
 		go worker(n)
 	}
 
-	for index, _ := range g.roots() {
+	for index, _ := range g.meta.roots() {
 		buildChan <- index
 	}
 
@@ -176,17 +174,17 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		// 最初のノード
 		n.parents[index] = -1
 		n.save()
-		g.updateRoot(index, n.id)
+		g.meta.updateRoot(index, n.id)
 		return
 	}
 	item := g.findBranchByVector(root, n.v)
 	found := g.nodes.getNode(item)
-	fmt.Printf("Found %d\n", item)
+	// fmt.Printf("Found %d\n", item)
 
 	org_parent := found.parents[index]
 	if found.isBucket() && len(found.children) < g.K {
 		// ノードに余裕があれば追加
-		fmt.Printf("pattern bucket\n")
+		// fmt.Printf("pattern bucket\n")
 		n.updateParents(index, item)
 		found.nDescendants++
 		found.children = append(found.children, n.id)
@@ -196,19 +194,19 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		willDelete := false
 		var indices []int
 		if found.isLeaf() {
-			fmt.Printf("pattern leaf node\n")
+			// fmt.Printf("pattern leaf node\n")
 			indices = []int{item, n.id}
 		} else {
-			fmt.Printf("pattern full backet\n")
+			// fmt.Printf("pattern full backet\n")
 			indices = append(found.children, n.id)
 			willDelete = true
 		}
 
 		m := g.makeTree(index, org_parent, indices)
-		fmt.Printf("m: %d, org_parent: %d\n", m, org_parent)
+		// fmt.Printf("m: %d, org_parent: %d\n", m, org_parent)
 		if org_parent == -1 {
 			// rootノードの入れ替え
-			g.updateRoot(index, m)
+			g.meta.updateRoot(index, m)
 		} else {
 			parent := g.nodes.getNode(org_parent)
 			parent.nDescendants++
@@ -309,58 +307,6 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 	return m.id
 }
 
-func (g *GannoyIndex) roots() []int {
-	err := syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  0,
-		Len:    int64(g.tree * 4),
-		Type:   syscall.F_RDLCK,
-		Whence: io.SeekStart,
-	})
-	if err != nil {
-		fmt.Printf("fcntl error %v\n", err)
-	}
-	defer syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  0,
-		Len:    int64(g.tree * 4),
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekStart,
-	})
-
-	b := make([]byte, g.tree*4)
-	syscall.Pread(int(g.meta.Fd()), b, 0)
-	buf := bytes.NewReader(b)
-	roots := make([]int32, g.tree)
-	binary.Read(buf, binary.BigEndian, &roots)
-	result := make([]int, g.tree)
-	for i, r := range roots {
-		result[i] = int(r)
-	}
-	return result
-}
-
-func (g *GannoyIndex) updateRoot(index, root int) error {
-	offset := int64(index * 4)
-	err := syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    4,
-		Type:   syscall.F_WRLCK,
-		Whence: io.SeekStart,
-	})
-	if err != nil {
-		return err
-	}
-	defer syscall.FcntlFlock(g.meta.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    4,
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekStart,
-	})
-	buf := &bytes.Buffer{}
-	binary.Write(buf, binary.BigEndian, int32(root))
-	_, err = syscall.Pwrite(int(g.meta.Fd()), buf.Bytes(), offset)
-	return err
-}
-
 type buildArgs struct {
 	id     int
 	w      []float64
@@ -371,21 +317,6 @@ func (g *GannoyIndex) builder() {
 	for args := range g.buildChan {
 		args.result <- g.addItem(args.id, args.w)
 	}
-}
-
-func initializeRoots(filename string, tree int) {
-	f, _ := os.Create(filename)
-	defer f.Close()
-	roots := make([]int32, tree)
-	for i, _ := range roots {
-		roots[i] = int32(-1)
-	}
-	binary.Write(f, binary.BigEndian, roots)
-}
-
-func loadMeta(filename string) *os.File {
-	file, _ := os.OpenFile(filename, os.O_RDWR, 0)
-	return file
 }
 
 func (g GannoyIndex) walk(root int, node Node, id, tab int) {
