@@ -24,7 +24,7 @@ func init() {
 }
 
 func main() {
-	err := gannoy.CreateMeta(path, database, dim, tree)
+	err := gannoy.CreateMeta(path, database, tree, dim)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)
