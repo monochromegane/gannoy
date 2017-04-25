@@ -33,8 +33,8 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	ann := meta.treePath()
 	maps := meta.mapPath()
 
-	K := 3
-	// K := 50
+	// K := 3
+	K := 50
 	gannoy := GannoyIndex{
 		meta:      meta,
 		maps:      newMaps(maps),
@@ -210,13 +210,17 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		} else {
 			parent := g.nodes.getNode(org_parent)
 			parent.nDescendants++
-			children := []int{}
-			for _, child := range parent.children {
-				if child != item {
-					children = append(children, child)
+			children := make([]int, len(parent.children))
+			for i, child := range parent.children {
+				if child == item {
+					// 新しいノードに変更
+					children[i] = m
+				} else {
+					// 既存のノードのまま
+					children[i] = child
 				}
 			}
-			parent.children = append(children, m)
+			parent.children = children
 			parent.save()
 
 		}
