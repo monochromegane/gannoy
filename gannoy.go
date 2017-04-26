@@ -68,6 +68,12 @@ func (g *GannoyIndex) RemoveItem(id int) error {
 	return <-args.result
 }
 
+func (g *GannoyIndex) UpdateItem(id int, w []float64) error {
+	args := buildArgs{action: UPDATE, id: id, w: w, result: make(chan error)}
+	g.buildChan <- args
+	return <-args.result
+}
+
 func (g GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
 	m := g.nodes.getNode(g.maps.getIndex(id))
 	if !m.isLeaf() {
@@ -409,6 +415,13 @@ func (g *GannoyIndex) builder() {
 			args.result <- g.addItem(args.id, args.w)
 		case DELETE:
 			args.result <- g.removeItem(args.id)
+		case UPDATE:
+			err := g.removeItem(args.id)
+			if err != nil {
+				args.result <- err
+			} else {
+				args.result <- g.addItem(args.id, args.w)
+			}
 		}
 	}
 }
