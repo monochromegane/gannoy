@@ -57,7 +57,13 @@ func (g GannoyIndex) Tree() {
 }
 
 func (g *GannoyIndex) AddItem(id int, w []float64) error {
-	args := buildArgs{id: id, w: w, result: make(chan error)}
+	args := buildArgs{action: ADD, id: id, w: w, result: make(chan error)}
+	g.buildChan <- args
+	return <-args.result
+}
+
+func (g *GannoyIndex) RemoveItem(id int) error {
+	args := buildArgs{action: DELETE, id: id, result: make(chan error)}
 	g.buildChan <- args
 	return <-args.result
 }
@@ -230,6 +236,84 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 	}
 }
 
+func (g *GannoyIndex) removeItem(id int) error {
+	index := g.maps.getIndex(id)
+	n := g.nodes.getNode(index)
+
+	var wg sync.WaitGroup
+	wg.Add(g.tree)
+	buildChan := make(chan int, g.tree)
+	worker := func(n Node) {
+		for root := range buildChan {
+			g.remove(root, n)
+			wg.Done()
+		}
+	}
+
+	for i := 0; i < 3; i++ {
+		go worker(n)
+	}
+	for index, _ := range g.meta.roots() {
+		buildChan <- index
+	}
+
+	wg.Wait()
+	close(buildChan)
+
+	g.maps.remove(n.id, id)
+	n.ref = false
+	n.save()
+
+	return nil
+}
+
+func (g *GannoyIndex) remove(root int, node Node) {
+	parent := g.nodes.getNode(node.parents[root])
+	if parent.isBucket() && len(parent.children) > 2 {
+		// fmt.Printf("pattern bucket\n")
+		target := -1
+		for i, child := range parent.children {
+			if child == node.id {
+				target = i
+			}
+		}
+		if target == -1 {
+			return
+		}
+		children := append(parent.children[:target], parent.children[(target+1):]...)
+		parent.nDescendants--
+		parent.children = children
+		parent.save()
+	} else {
+		// fmt.Printf("pattern leaf node\n")
+		var other int
+		for _, child := range parent.children {
+			if child != node.id {
+				other = child
+			}
+		}
+		grandParent := g.nodes.getNode(parent.parents[root])
+		children := []int{}
+		for _, child := range grandParent.children {
+			if child == node.parents[root] {
+				children = append(children, other)
+			} else {
+				children = append(children, child)
+			}
+		}
+		grandParent.nDescendants--
+		grandParent.children = children
+		grandParent.save()
+
+		otherNode := g.nodes.getNode(other)
+		otherNode.parents[root] = parent.parents[root]
+		otherNode.save()
+
+		parent.ref = false
+		parent.save()
+	}
+}
+
 func (g GannoyIndex) findBranchByVector(index int, v []float64) int {
 	node := g.nodes.getNode(index)
 	if node.isLeaf() || node.isBucket() {
@@ -312,6 +396,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 }
 
 type buildArgs struct {
+	action int
 	id     int
 	w      []float64
 	result chan error
@@ -319,7 +404,12 @@ type buildArgs struct {
 
 func (g *GannoyIndex) builder() {
 	for args := range g.buildChan {
-		args.result <- g.addItem(args.id, args.w)
+		switch args.action {
+		case ADD:
+			args.result <- g.addItem(args.id, args.w)
+		case DELETE:
+			args.result <- g.removeItem(args.id)
+		}
 	}
 }
 
@@ -327,7 +417,7 @@ func (g GannoyIndex) walk(root int, node Node, id, tab int) {
 	for i := 0; i < tab*2; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Printf("%d (%d) [nDescendants: %d, v: %v]\n", id, node.parents[root], node.nDescendants, node.v)
+	fmt.Printf("%d [%d] (%d) [nDescendants: %d, v: %v]\n", id, g.maps.getId(id), node.parents[root], node.nDescendants, node.v)
 	if !node.isLeaf() {
 		for _, child := range node.children {
 			g.walk(root, g.nodes.getNode(child), child, tab+1)

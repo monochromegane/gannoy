@@ -74,6 +74,16 @@ func (m *Maps) add(index, id int) {
 	m.indexToId[index] = id
 }
 
+func (m *Maps) remove(index, id int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// TODO: remove from map file
+
+	delete(m.idToIndex, id)
+	delete(m.indexToId, index)
+}
+
 func (m Maps) getId(index int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
