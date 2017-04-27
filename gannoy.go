@@ -273,6 +273,10 @@ func (g *GannoyIndex) removeItem(id int) error {
 }
 
 func (g *GannoyIndex) remove(root int, node Node) {
+	if node.isRoot(root) {
+		g.meta.updateRoot(root, -1)
+		return
+	}
 	parent := g.nodes.getNode(node.parents[root])
 	if parent.isBucket() && len(parent.children) > 2 {
 		// fmt.Printf("pattern bucket\n")
@@ -297,22 +301,25 @@ func (g *GannoyIndex) remove(root int, node Node) {
 				other = child
 			}
 		}
-		grandParent := g.nodes.getNode(parent.parents[root])
-		children := []int{}
-		for _, child := range grandParent.children {
-			if child == node.parents[root] {
-				children = append(children, other)
-			} else {
-				children = append(children, child)
+		if parent.isRoot(root) {
+			g.meta.updateRoot(root, other)
+		} else {
+			grandParent := g.nodes.getNode(parent.parents[root])
+			children := []int{}
+			for _, child := range grandParent.children {
+				if child == node.parents[root] {
+					children = append(children, other)
+				} else {
+					children = append(children, child)
+				}
 			}
+			grandParent.nDescendants--
+			grandParent.children = children
+			grandParent.save()
 		}
-		grandParent.nDescendants--
-		grandParent.children = children
-		grandParent.save()
 
 		otherNode := g.nodes.getNode(other)
-		otherNode.parents[root] = parent.parents[root]
-		otherNode.save()
+		otherNode.updateParents(root, parent.parents[root])
 
 		parent.ref = false
 		parent.save()
