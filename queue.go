@@ -6,5 +6,5 @@ type Queue struct {
 }
 
 func (q *Queue) Less(other interface{}) bool {
-	return q.priority < other.(*Queue).priority
+	return q.priority > other.(*Queue).priority
 }
