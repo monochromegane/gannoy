@@ -5,3 +5,8 @@ const (
 	DELETE
 	UPDATE
 )
+
+const (
+	ASC int = iota
+	DESC
+)
