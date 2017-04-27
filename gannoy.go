@@ -118,14 +118,14 @@ func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 	}
 
 	sort.Ints(nns)
-	nnsDist := []Dist{}
+	nnsDist := []sorter{}
 	last := -1
 	for _, j := range nns {
 		if j == last {
 			continue
 		}
 		last = j
-		nnsDist = append(nnsDist, Dist{distance: g.distance.distance(v, g.nodes.getNode(j).v, g.dim), item: j})
+		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, g.nodes.getNode(j).v, g.dim), id: j})
 	}
 
 	m := len(nnsDist)
@@ -134,12 +134,11 @@ func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 		p = n
 	}
 
-	result := []int{}
-	sort.Slice(nnsDist, func(i, j int) bool {
-		return nnsDist[i].distance < nnsDist[j].distance
-	})
+	HeapSort(nnsDist, DESC, p)
+
+	result := make([]int, p)
 	for i := 0; i < p; i++ {
-		result = append(result, nnsDist[i].item)
+		result[i] = nnsDist[m-1-i].id
 	}
 
 	return result

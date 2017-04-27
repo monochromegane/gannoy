@@ -8,8 +8,3 @@ type Queue struct {
 func (q *Queue) Less(other interface{}) bool {
 	return q.priority < other.(*Queue).priority
 }
-
-type Dist struct {
-	distance float64
-	item     int
-}
