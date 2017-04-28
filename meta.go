@@ -135,6 +135,10 @@ func (m meta) mapPath() string {
 	return m.filePath("map")
 }
 
+func (m meta) freePath() string {
+	return m.filePath("free")
+}
+
 func (m meta) filePath(newExt string) string {
 	ext := filepath.Ext(m.path)
 	return fmt.Sprintf("%s.%s", strings.Split(m.path, ext)[0], newExt)

@@ -5,5 +5,4 @@ type Storage interface {
 	Find(int) Node
 	Update(Node) error
 	UpdateParent(int, int, int) error
-	Delete(Node) error
 }

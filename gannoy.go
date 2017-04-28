@@ -31,21 +31,18 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	tree := meta.tree
 	dim := meta.dim
 
-	ann := meta.treePath()
-	maps := meta.mapPath()
-
 	// K := 3
 	K := 50
 	gannoy := GannoyIndex{
 		meta:      meta,
-		maps:      newMaps(maps),
-		free:      newFree(),
+		maps:      newMaps(meta.mapPath()),
+		free:      newFree(meta.freePath()),
 		tree:      tree,
 		dim:       dim,
 		distance:  distance,
 		random:    random,
 		K:         K,
-		nodes:     newNodes(ann, tree, dim, K),
+		nodes:     newNodes(meta.treePath(), tree, dim, K),
 		buildChan: make(chan buildArgs, 1),
 	}
 	go gannoy.builder()
@@ -238,7 +235,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 
 		}
 		if willDelete {
-			found.destroy()
+			g.free.push(found.id)
 		}
 	}
 }
@@ -268,8 +265,6 @@ func (g *GannoyIndex) removeItem(id int) error {
 	close(buildChan)
 
 	g.maps.remove(n.id, id)
-	n.free = true
-	n.save()
 	g.free.push(n.id)
 
 	return nil
@@ -324,8 +319,6 @@ func (g *GannoyIndex) remove(root int, node Node) {
 		otherNode := g.nodes.getNode(other)
 		otherNode.updateParents(root, parent.parents[root])
 
-		parent.free = true
-		parent.save()
 		g.free.push(parent.id)
 	}
 }
