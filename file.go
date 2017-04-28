@@ -80,9 +80,9 @@ func (f *File) Find(index int) Node {
 
 	buf := bytes.NewReader(b)
 
-	var ref bool
-	binary.Read(buf, binary.BigEndian, &ref)
-	node.ref = ref
+	var free bool
+	binary.Read(buf, binary.BigEndian, &free)
+	node.free = free
 
 	var nDescendants int32
 	binary.Read(buf, binary.BigEndian, &nDescendants)
@@ -154,7 +154,7 @@ func (f *File) Update(n Node) error {
 
 func (f *File) UpdateParent(id, rootIndex, parent int) error {
 	offset := f.offset(id) +
-		int64(1+ // ref
+		int64(1+ // free
 			4+ // nDescendants
 			4*rootIndex) // parents
 	buf := &bytes.Buffer{}
@@ -180,7 +180,7 @@ func (f *File) UpdateParent(id, rootIndex, parent int) error {
 }
 
 func (f *File) Delete(n Node) error {
-	n.ref = false
+	n.free = true
 	return f.Update(n)
 }
 
@@ -195,7 +195,7 @@ func (f File) nodeCount() int {
 }
 
 func (f File) nodeSize() int64 {
-	return int64(1 + // ref
+	return int64(1 + // free
 		4 + // nDescendants
 		4*f.tree + // parents
 		8*f.dim + // v
@@ -203,8 +203,8 @@ func (f File) nodeSize() int64 {
 }
 
 func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
-	// 1bytes ref
-	binary.Write(buf, binary.BigEndian, node.ref)
+	// 1bytes free
+	binary.Write(buf, binary.BigEndian, node.free)
 
 	// 4bytes nDescendants
 	binary.Write(buf, binary.BigEndian, int32(node.nDescendants))

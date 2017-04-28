@@ -20,7 +20,7 @@ func (ns Nodes) newNode() Node {
 		parents:      []int{},
 		children:     []int{0, 0},
 		v:            []float64{},
-		ref:          true,
+		free:         false,
 
 		isNewRecord: true,
 	}
@@ -38,7 +38,7 @@ type Node struct {
 	parents      []int
 	children     []int
 	v            []float64
-	ref          bool
+	free         bool
 	isNewRecord  bool
 }
 
@@ -77,6 +77,6 @@ func (n *Node) destroy() error {
 	if err != nil {
 		return err
 	}
-	n.ref = false
+	n.free = true
 	return nil
 }

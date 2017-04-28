@@ -266,7 +266,7 @@ func (g *GannoyIndex) removeItem(id int) error {
 	close(buildChan)
 
 	g.maps.remove(n.id, id)
-	n.ref = false
+	n.free = true
 	n.save()
 
 	return nil
@@ -321,7 +321,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 		otherNode := g.nodes.getNode(other)
 		otherNode.updateParents(root, parent.parents[root])
 
-		parent.ref = false
+		parent.free = true
 		parent.save()
 	}
 }
