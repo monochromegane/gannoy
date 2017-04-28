@@ -12,6 +12,7 @@ import (
 type GannoyIndex struct {
 	meta      meta
 	maps      Maps
+	free      Free
 	tree      int
 	dim       int
 	distance  Distance
@@ -38,6 +39,7 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	gannoy := GannoyIndex{
 		meta:      meta,
 		maps:      newMaps(maps),
+		free:      newFree(),
 		tree:      tree,
 		dim:       dim,
 		distance:  distance,
@@ -145,7 +147,7 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 }
 
 func (g *GannoyIndex) addItem(id int, w []float64) error {
-	n := g.nodes.newNode()
+	n := g.newNode()
 	n.v = w
 	n.parents = make([]int, g.tree)
 	err := n.save()
@@ -268,6 +270,7 @@ func (g *GannoyIndex) removeItem(id int) error {
 	g.maps.remove(n.id, id)
 	n.free = true
 	n.save()
+	g.free.push(n.id)
 
 	return nil
 }
@@ -323,6 +326,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 
 		parent.free = true
 		parent.save()
+		g.free.push(parent.id)
 	}
 }
 
@@ -346,7 +350,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 	}
 
 	if len(indices) <= g.K {
-		m := g.nodes.newNode()
+		m := g.newNode()
 		m.parents = make([]int, g.tree)
 		m.nDescendants = len(indices)
 		m.parents[root] = parent
@@ -369,7 +373,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 
 	childrenIndices := [2][]int{[]int{}, []int{}}
 
-	m := g.nodes.newNode()
+	m := g.newNode()
 	m.parents = make([]int, g.tree)
 	m.nDescendants = len(indices)
 	m.parents[root] = parent
@@ -405,6 +409,15 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 	m.save()
 
 	return m.id
+}
+
+func (g *GannoyIndex) newNode() Node {
+	node := g.nodes.newNode()
+	if free, err := g.free.pop(); err == nil {
+		node.id = free
+		node.isNewRecord = false
+	}
+	return node
 }
 
 type buildArgs struct {
