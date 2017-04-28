@@ -74,7 +74,7 @@ func (g *GannoyIndex) UpdateItem(id int, w []float64) error {
 	return <-args.result
 }
 
-func (g GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
+func (g *GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
 	m := g.nodes.getNode(g.maps.getIndex(id))
 	if !m.isLeaf() {
 		return []int{}
@@ -87,7 +87,7 @@ func (g GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
 	return ids
 }
 
-func (g GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
+func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 	if searchK == -1 {
 		searchK = n * g.tree
 	}

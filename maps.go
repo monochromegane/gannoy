@@ -84,7 +84,7 @@ func (m *Maps) remove(index, id int) {
 	delete(m.indexToId, index)
 }
 
-func (m Maps) getId(index int) int {
+func (m *Maps) getId(index int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -95,7 +95,7 @@ func (m Maps) getId(index int) int {
 	}
 }
 
-func (m Maps) getIndex(id int) int {
+func (m *Maps) getIndex(id int) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
