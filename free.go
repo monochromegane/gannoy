@@ -1,6 +1,9 @@
 package gannoy
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type Free struct {
 	mu   sync.Mutex
@@ -21,11 +24,15 @@ func (f *Free) push(index int) {
 	f.free = append(f.free, index)
 }
 
-func (f *Free) pop() int {
+func (f *Free) pop() (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if len(f.free) == 0 {
+		return 0, fmt.Errorf("empty")
+	}
+
 	x, newFree := f.free[len(f.free)-1], f.free[:len(f.free)-1]
 	f.free = newFree
-	return x
+	return x, nil
 }
