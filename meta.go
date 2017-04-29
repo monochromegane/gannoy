@@ -131,10 +131,6 @@ func (m meta) treePath() string {
 	return m.filePath("tree")
 }
 
-func (m meta) mapPath() string {
-	return m.filePath("map")
-}
-
 func (m meta) filePath(newExt string) string {
 	ext := filepath.Ext(m.path)
 	return fmt.Sprintf("%s.%s", strings.Split(m.path, ext)[0], newExt)

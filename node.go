@@ -2,21 +2,45 @@ package gannoy
 
 type Nodes struct {
 	Storage
+	free Free
+	maps Maps
 }
 
 func newNodes(filename string, tree, dim, K int) Nodes {
 	// TODO Switch storage by parameter
-	return Nodes{
+	nodes := Nodes{
 		Storage: newFile(filename, tree, dim, K),
+	}
+	// initialize free and maps
+	nodes.initialize()
+	return nodes
+}
+
+func (n *Nodes) initialize() {
+	n.free = newFree()
+	n.maps = newMaps()
+
+	iterator := make(chan Node)
+	go n.Iterate(iterator)
+
+	for node := range iterator {
+		if node.free {
+			n.free.push(node.id)
+		} else {
+			if node.isLeaf() {
+				n.maps.add(node.id, node.key)
+			}
+		}
 	}
 }
 
-func (ns Nodes) newNode() Node {
-	return Node{
+func (ns *Nodes) newNode() Node {
+	node := Node{
 		storage: ns.Storage,
 
 		nDescendants: 1,
 		id:           -1,
+		key:          -1,
 		parents:      []int{},
 		children:     []int{0, 0},
 		v:            []float64{},
@@ -24,10 +48,19 @@ func (ns Nodes) newNode() Node {
 
 		isNewRecord: true,
 	}
+	if free, err := ns.free.pop(); err == nil {
+		node.id = free
+		node.isNewRecord = false
+	}
+	return node
 }
 
 func (ns Nodes) getNode(index int) Node {
 	return ns.Storage.Find(index)
+}
+
+func (ns Nodes) getNodeByKey(key int) Node {
+	return ns.getNode(ns.maps.getIndex(key))
 }
 
 type Node struct {
@@ -35,6 +68,7 @@ type Node struct {
 
 	nDescendants int
 	id           int
+	key          int
 	parents      []int
 	children     []int
 	v            []float64

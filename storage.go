@@ -6,4 +6,5 @@ type Storage interface {
 	Update(Node) error
 	UpdateParent(int, int, int) error
 	Delete(Node) error
+	Iterate(chan Node)
 }

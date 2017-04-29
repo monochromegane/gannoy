@@ -11,8 +11,6 @@ import (
 
 type GannoyIndex struct {
 	meta      meta
-	maps      Maps
-	free      Free
 	tree      int
 	dim       int
 	distance  Distance
@@ -32,14 +30,11 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	dim := meta.dim
 
 	ann := meta.treePath()
-	maps := meta.mapPath()
 
 	// K := 3
 	K := 50
 	gannoy := GannoyIndex{
 		meta:      meta,
-		maps:      newMaps(maps),
-		free:      newFree(),
 		tree:      tree,
 		dim:       dim,
 		distance:  distance,
@@ -76,17 +71,13 @@ func (g *GannoyIndex) UpdateItem(id int, w []float64) error {
 	return <-args.result
 }
 
-func (g *GannoyIndex) GetNnsByItem(id, n, searchK int) []int {
-	m := g.nodes.getNode(g.maps.getIndex(id))
+func (g *GannoyIndex) GetNnsByItem(key, n, searchK int) []int {
+	m := g.nodes.getNodeByKey(key)
 	if !m.isLeaf() {
 		return []int{}
 	}
-	indices := g.getAllNns(m.v, n, searchK)
-	ids := make([]int, len(indices))
-	for i, index := range indices {
-		ids[i] = g.maps.getId(index)
-	}
-	return ids
+	keys := g.getAllNns(m.v, n, searchK)
+	return keys
 }
 
 func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
@@ -127,7 +118,8 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 			continue
 		}
 		last = j
-		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, g.nodes.getNode(j).v, g.dim), id: j})
+		node := g.nodes.getNode(j)
+		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, node.v, g.dim), id: node.key})
 	}
 
 	m := len(nnsDist)
@@ -147,7 +139,8 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 }
 
 func (g *GannoyIndex) addItem(id int, w []float64) error {
-	n := g.newNode()
+	n := g.nodes.newNode()
+	n.key = id
 	n.v = w
 	n.parents = make([]int, g.tree)
 	err := n.save()
@@ -177,7 +170,7 @@ func (g *GannoyIndex) addItem(id int, w []float64) error {
 
 	wg.Wait()
 	close(buildChan)
-	g.maps.add(n.id, id)
+	g.nodes.maps.add(n.id, id)
 
 	return nil
 }
@@ -243,9 +236,8 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 	}
 }
 
-func (g *GannoyIndex) removeItem(id int) error {
-	index := g.maps.getIndex(id)
-	n := g.nodes.getNode(index)
+func (g *GannoyIndex) removeItem(key int) error {
+	n := g.nodes.getNodeByKey(key)
 
 	var wg sync.WaitGroup
 	wg.Add(g.tree)
@@ -267,10 +259,10 @@ func (g *GannoyIndex) removeItem(id int) error {
 	wg.Wait()
 	close(buildChan)
 
-	g.maps.remove(n.id, id)
+	g.nodes.maps.remove(key)
 	n.free = true
 	n.save()
-	g.free.push(n.id)
+	g.nodes.free.push(n.id)
 
 	return nil
 }
@@ -326,7 +318,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 
 		parent.free = true
 		parent.save()
-		g.free.push(parent.id)
+		g.nodes.free.push(parent.id)
 	}
 }
 
@@ -350,7 +342,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 	}
 
 	if len(indices) <= g.K {
-		m := g.newNode()
+		m := g.nodes.newNode()
 		m.parents = make([]int, g.tree)
 		m.nDescendants = len(indices)
 		m.parents[root] = parent
@@ -373,7 +365,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 
 	childrenIndices := [2][]int{[]int{}, []int{}}
 
-	m := g.newNode()
+	m := g.nodes.newNode()
 	m.parents = make([]int, g.tree)
 	m.nDescendants = len(indices)
 	m.parents[root] = parent
@@ -411,15 +403,6 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 	return m.id
 }
 
-func (g *GannoyIndex) newNode() Node {
-	node := g.nodes.newNode()
-	if free, err := g.free.pop(); err == nil {
-		node.id = free
-		node.isNewRecord = false
-	}
-	return node
-}
-
 type buildArgs struct {
 	action int
 	id     int
@@ -449,7 +432,7 @@ func (g GannoyIndex) walk(root int, node Node, id, tab int) {
 	for i := 0; i < tab*2; i++ {
 		fmt.Print(" ")
 	}
-	fmt.Printf("%d [%d] (%d) [nDescendants: %d, v: %v]\n", id, g.maps.getId(id), node.parents[root], node.nDescendants, node.v)
+	fmt.Printf("%d [%d] (%d) [nDescendants: %d, v: %v]\n", id, node.key, node.parents[root], node.nDescendants, node.v)
 	if !node.isLeaf() {
 		for _, child := range node.children {
 			g.walk(root, g.nodes.getNode(child), child, tab+1)

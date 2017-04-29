@@ -88,6 +88,10 @@ func (f *File) Find(index int) Node {
 	binary.Read(buf, binary.BigEndian, &nDescendants)
 	node.nDescendants = int(nDescendants)
 
+	var key int32
+	binary.Read(buf, binary.BigEndian, &key)
+	node.key = int(key)
+
 	parents := make([]int32, f.tree)
 	binary.Read(buf, binary.BigEndian, &parents)
 	nodeParents := make([]int, f.tree)
@@ -156,6 +160,7 @@ func (f *File) UpdateParent(id, rootIndex, parent int) error {
 	offset := f.offset(id) +
 		int64(1+ // free
 			4+ // nDescendants
+			4+ // key
 			4*rootIndex) // parents
 	buf := &bytes.Buffer{}
 	binary.Write(buf, binary.BigEndian, int32(parent))
@@ -184,6 +189,15 @@ func (f *File) Delete(n Node) error {
 	return f.Update(n)
 }
 
+func (f *File) Iterate(c chan Node) {
+	count := f.nodeCount()
+	// TODO: Use goroutine
+	for i := 0; i < count; i++ {
+		c <- f.Find(i)
+	}
+	close(c)
+}
+
 func (f File) offset(item int) int64 {
 	return (int64(item) * f.nodeSize())
 }
@@ -197,6 +211,7 @@ func (f File) nodeCount() int {
 func (f File) nodeSize() int64 {
 	return int64(1 + // free
 		4 + // nDescendants
+		4 + // key
 		4*f.tree + // parents
 		8*f.dim + // v
 		4*f.K) // children
@@ -208,6 +223,9 @@ func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
 
 	// 4bytes nDescendants
 	binary.Write(buf, binary.BigEndian, int32(node.nDescendants))
+
+	// 4bytes key
+	binary.Write(buf, binary.BigEndian, int32(node.key))
 
 	// 4bytes parents
 	parents := make([]int32, len(node.parents))
