@@ -232,6 +232,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		}
 		if willDelete {
 			found.destroy()
+			g.nodes.free.push(found.id)
 		}
 	}
 }
@@ -260,8 +261,7 @@ func (g *GannoyIndex) removeItem(key int) error {
 	close(buildChan)
 
 	g.nodes.maps.remove(key)
-	n.free = true
-	n.save()
+	n.destroy()
 	g.nodes.free.push(n.id)
 
 	return nil
@@ -316,8 +316,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 		otherNode := g.nodes.getNode(other)
 		otherNode.updateParents(root, parent.parents[root])
 
-		parent.free = true
-		parent.save()
+		parent.destroy()
 		g.nodes.free.push(parent.id)
 	}
 }
