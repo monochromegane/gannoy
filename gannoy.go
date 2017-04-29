@@ -53,25 +53,25 @@ func (g GannoyIndex) Tree() {
 	}
 }
 
-func (g *GannoyIndex) AddItem(id int, w []float64) error {
-	args := buildArgs{action: ADD, id: id, w: w, result: make(chan error)}
+func (g *GannoyIndex) AddItem(key int, w []float64) error {
+	args := buildArgs{action: ADD, key: key, w: w, result: make(chan error)}
 	g.buildChan <- args
 	return <-args.result
 }
 
-func (g *GannoyIndex) RemoveItem(id int) error {
-	args := buildArgs{action: DELETE, id: id, result: make(chan error)}
+func (g *GannoyIndex) RemoveItem(key int) error {
+	args := buildArgs{action: DELETE, key: key, result: make(chan error)}
 	g.buildChan <- args
 	return <-args.result
 }
 
-func (g *GannoyIndex) UpdateItem(id int, w []float64) error {
-	args := buildArgs{action: UPDATE, id: id, w: w, result: make(chan error)}
+func (g *GannoyIndex) UpdateItem(key int, w []float64) error {
+	args := buildArgs{action: UPDATE, key: key, w: w, result: make(chan error)}
 	g.buildChan <- args
 	return <-args.result
 }
 
-func (g *GannoyIndex) GetNnsByItem(key, n, searchK int) []int {
+func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) []int {
 	m := g.nodes.getNodeByKey(key)
 	if !m.isLeaf() {
 		return []int{}
@@ -138,9 +138,9 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 	return result
 }
 
-func (g *GannoyIndex) addItem(id int, w []float64) error {
+func (g *GannoyIndex) addItem(key int, w []float64) error {
 	n := g.nodes.newNode()
-	n.key = id
+	n.key = key
 	n.v = w
 	n.parents = make([]int, g.tree)
 	err := n.save()
@@ -170,7 +170,7 @@ func (g *GannoyIndex) addItem(id int, w []float64) error {
 
 	wg.Wait()
 	close(buildChan)
-	g.nodes.maps.add(n.id, id)
+	g.nodes.maps.add(n.id, key)
 
 	return nil
 }
@@ -183,15 +183,15 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		g.meta.updateRoot(index, n.id)
 		return
 	}
-	item := g.findBranchByVector(root, n.v)
-	found := g.nodes.getNode(item)
+	id := g.findBranchByVector(root, n.v)
+	found := g.nodes.getNode(id)
 	// fmt.Printf("Found %d\n", item)
 
 	org_parent := found.parents[index]
 	if found.isBucket() && len(found.children) < g.K {
 		// ノードに余裕があれば追加
 		// fmt.Printf("pattern bucket\n")
-		n.updateParents(index, item)
+		n.updateParents(index, id)
 		found.nDescendants++
 		found.children = append(found.children, n.id)
 		found.save()
@@ -201,7 +201,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		var indices []int
 		if found.isLeaf() {
 			// fmt.Printf("pattern leaf node\n")
-			indices = []int{item, n.id}
+			indices = []int{id, n.id}
 		} else {
 			// fmt.Printf("pattern full backet\n")
 			indices = append(found.children, n.id)
@@ -218,7 +218,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 			parent.nDescendants++
 			children := make([]int, len(parent.children))
 			for i, child := range parent.children {
-				if child == item {
+				if child == id {
 					// 新しいノードに変更
 					children[i] = m
 				} else {
@@ -322,33 +322,33 @@ func (g *GannoyIndex) remove(root int, node Node) {
 	}
 }
 
-func (g GannoyIndex) findBranchByVector(index int, v []float64) int {
-	node := g.nodes.getNode(index)
+func (g GannoyIndex) findBranchByVector(id int, v []float64) int {
+	node := g.nodes.getNode(id)
 	if node.isLeaf() || node.isBucket() {
-		return index
+		return id
 	}
 	side := g.distance.side(node, v, g.dim, g.random)
 	return g.findBranchByVector(node.children[side], v)
 }
 
-func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
-	if len(indices) == 1 {
-		n := g.nodes.getNode(indices[0])
+func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
+	if len(ids) == 1 {
+		n := g.nodes.getNode(ids[0])
 		if len(n.parents) == 0 {
 			n.parents = make([]int, g.tree)
 		}
 		n.updateParents(root, parent)
-		return indices[0]
+		return ids[0]
 	}
 
-	if len(indices) <= g.K {
+	if len(ids) <= g.K {
 		m := g.nodes.newNode()
 		m.parents = make([]int, g.tree)
-		m.nDescendants = len(indices)
+		m.nDescendants = len(ids)
 		m.parents[root] = parent
-		m.children = indices
+		m.children = ids
 		m.save()
-		for _, child := range indices {
+		for _, child := range ids {
 			c := g.nodes.getNode(child)
 			if len(c.parents) == 0 {
 				c.parents = make([]int, g.tree)
@@ -358,45 +358,45 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 		return m.id
 	}
 
-	children := make([]Node, len(indices))
-	for i, idx := range indices {
-		children[i] = g.nodes.getNode(idx)
+	children := make([]Node, len(ids))
+	for i, id := range ids {
+		children[i] = g.nodes.getNode(id)
 	}
 
-	childrenIndices := [2][]int{[]int{}, []int{}}
+	childrenIds := [2][]int{[]int{}, []int{}}
 
 	m := g.nodes.newNode()
 	m.parents = make([]int, g.tree)
-	m.nDescendants = len(indices)
+	m.nDescendants = len(ids)
 	m.parents[root] = parent
 
 	m = g.distance.createSplit(children, g.dim, g.random, m)
-	for _, idx := range indices {
-		n := g.nodes.getNode(idx)
+	for _, id := range ids {
+		n := g.nodes.getNode(id)
 		side := g.distance.side(m, n.v, g.dim, g.random)
-		childrenIndices[side] = append(childrenIndices[side], idx)
+		childrenIds[side] = append(childrenIds[side], id)
 	}
 
-	for len(childrenIndices[0]) == 0 || len(childrenIndices[1]) == 0 {
-		childrenIndices[0] = []int{}
-		childrenIndices[1] = []int{}
+	for len(childrenIds[0]) == 0 || len(childrenIds[1]) == 0 {
+		childrenIds[0] = []int{}
+		childrenIds[1] = []int{}
 		for z := 0; z < g.dim; z++ {
 			m.v[z] = 0.0
 		}
-		for _, idx := range indices {
+		for _, id := range ids {
 			side := g.random.flip()
-			childrenIndices[side] = append(childrenIndices[side], idx)
+			childrenIds[side] = append(childrenIds[side], id)
 		}
 	}
 
 	var flip int
-	if len(childrenIndices[0]) > len(childrenIndices[1]) {
+	if len(childrenIds[0]) > len(childrenIds[1]) {
 		flip = 1
 	}
 
 	m.save()
 	for side := 0; side < 2; side++ {
-		m.children[side^flip] = g.makeTree(root, m.id, childrenIndices[side^flip])
+		m.children[side^flip] = g.makeTree(root, m.id, childrenIds[side^flip])
 	}
 	m.save()
 
@@ -405,7 +405,7 @@ func (g *GannoyIndex) makeTree(root, parent int, indices []int) int {
 
 type buildArgs struct {
 	action int
-	id     int
+	key    int
 	w      []float64
 	result chan error
 }
@@ -414,15 +414,15 @@ func (g *GannoyIndex) builder() {
 	for args := range g.buildChan {
 		switch args.action {
 		case ADD:
-			args.result <- g.addItem(args.id, args.w)
+			args.result <- g.addItem(args.key, args.w)
 		case DELETE:
-			args.result <- g.removeItem(args.id)
+			args.result <- g.removeItem(args.key)
 		case UPDATE:
-			err := g.removeItem(args.id)
+			err := g.removeItem(args.key)
 			if err != nil {
 				args.result <- err
 			} else {
-				args.result <- g.addItem(args.id, args.w)
+				args.result <- g.addItem(args.key, args.w)
 			}
 		}
 	}

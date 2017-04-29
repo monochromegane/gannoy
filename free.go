@@ -17,11 +17,11 @@ func newFree() Free {
 	}
 }
 
-func (f *Free) push(index int) {
+func (f *Free) push(id int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.free = append(f.free, index)
+	f.free = append(f.free, id)
 }
 
 func (f *Free) pop() (int, error) {

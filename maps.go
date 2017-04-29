@@ -7,38 +7,38 @@ import (
 type Maps struct {
 	mu sync.Mutex
 
-	idToIndex map[int]int
+	keyToId map[int]int
 }
 
 func newMaps() Maps {
 	return Maps{
-		mu:        sync.Mutex{},
-		idToIndex: map[int]int{},
+		mu:      sync.Mutex{},
+		keyToId: map[int]int{},
 	}
 }
 
-func (m *Maps) add(index, id int) {
+func (m *Maps) add(id, key int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.idToIndex[id] = index
+	m.keyToId[key] = id
 }
 
 func (m *Maps) remove(key int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.idToIndex, key)
+	delete(m.keyToId, key)
 }
 
-func (m *Maps) getIndex(id int) int {
+func (m *Maps) getId(key int) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if index, ok := m.idToIndex[id]; !ok {
+	if id, ok := m.keyToId[key]; !ok {
 		return -1
 	} else {
-		return index
+		return id
 	}
 }
 

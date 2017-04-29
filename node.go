@@ -55,12 +55,12 @@ func (ns *Nodes) newNode() Node {
 	return node
 }
 
-func (ns Nodes) getNode(index int) Node {
-	return ns.Storage.Find(index)
+func (ns Nodes) getNode(id int) Node {
+	return ns.Storage.Find(id)
 }
 
 func (ns Nodes) getNodeByKey(key int) Node {
-	return ns.getNode(ns.maps.getIndex(key))
+	return ns.getNode(ns.maps.getId(key))
 }
 
 type Node struct {

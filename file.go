@@ -44,7 +44,7 @@ func (f *File) Create(n Node) (int, error) {
 	args := createArgs{node: n, result: make(chan createResult)}
 	f.createChan <- args
 	result := <-args.result
-	return result.index, result.err
+	return result.id, result.err
 }
 
 func (f *File) create(n Node) (int, error) {
@@ -55,12 +55,13 @@ func (f *File) create(n Node) (int, error) {
 	return id, err
 }
 
-func (f *File) Find(index int) Node {
+func (f *File) Find(id int) Node {
 	node := Node{}
-	node.id = index
+	node.id = id
 	node.storage = f
+	offset := f.offset(id)
 	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  f.offset(index),
+		Start:  offset,
 		Len:    f.nodeSize(),
 		Type:   syscall.F_RDLCK,
 		Whence: io.SeekStart,
@@ -69,14 +70,14 @@ func (f *File) Find(index int) Node {
 		fmt.Printf("fcntl error %v\n", err)
 	}
 	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  f.offset(index),
+		Start:  offset,
 		Len:    f.nodeSize(),
 		Type:   syscall.F_UNLCK,
 		Whence: io.SeekStart,
 	})
 
 	b := make([]byte, f.nodeSize())
-	syscall.Pread(int(f.file.Fd()), b, f.offset(index))
+	syscall.Pread(int(f.file.Fd()), b, offset)
 
 	buf := bytes.NewReader(b)
 
@@ -136,9 +137,10 @@ func (f *File) Find(index int) Node {
 func (f *File) Update(n Node) error {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
+	offset := f.offset(n.id)
 
 	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  f.offset(n.id),
+		Start:  offset,
 		Len:    f.nodeSize(),
 		Type:   syscall.F_WRLCK,
 		Whence: io.SeekStart,
@@ -147,12 +149,12 @@ func (f *File) Update(n Node) error {
 		return err
 	}
 	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  f.offset(n.id),
+		Start:  offset,
 		Len:    f.nodeSize(),
 		Type:   syscall.F_UNLCK,
 		Whence: io.SeekStart,
 	})
-	_, err = syscall.Pwrite(int(f.file.Fd()), buf.Bytes(), f.offset(n.id))
+	_, err = syscall.Pwrite(int(f.file.Fd()), buf.Bytes(), offset)
 	return err
 }
 
@@ -198,8 +200,8 @@ func (f *File) Iterate(c chan Node) {
 	close(c)
 }
 
-func (f File) offset(item int) int64 {
-	return (int64(item) * f.nodeSize())
+func (f File) offset(id int) int64 {
+	return (int64(id) * f.nodeSize())
 }
 
 func (f File) nodeCount() int {
@@ -255,16 +257,16 @@ type createArgs struct {
 }
 
 type createResult struct {
-	index int
-	err   error
+	id  int
+	err error
 }
 
 func (f *File) creator() {
 	for args := range f.createChan {
-		index, err := f.create(args.node)
+		id, err := f.create(args.node)
 		args.result <- createResult{
-			index: index,
-			err:   err,
+			id:  id,
+			err: err,
 		}
 	}
 }
