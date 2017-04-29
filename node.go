@@ -20,6 +20,7 @@ func (ns Nodes) newNode() Node {
 		parents:      []int{},
 		children:     []int{0, 0},
 		v:            []float64{},
+		free:         false,
 
 		isNewRecord: true,
 	}
@@ -37,6 +38,7 @@ type Node struct {
 	parents      []int
 	children     []int
 	v            []float64
+	free         bool
 	isNewRecord  bool
 }
 
@@ -68,4 +70,13 @@ func (n *Node) save() error {
 
 func (n *Node) updateParents(index, parent int) error {
 	return n.storage.UpdateParent(n.id, index, parent)
+}
+
+func (n *Node) destroy() error {
+	err := n.storage.Delete(*n)
+	if err != nil {
+		return err
+	}
+	n.free = true
+	return nil
 }
