@@ -94,5 +94,23 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
+	e.DELETE("/databases/:database/features/:id", func(c echo.Context) error {
+		database := c.Param("database")
+		if _, ok := databases[database]; !ok {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		gannoy := databases[database]
+		err = gannoy.RemoveItem(id)
+		if err != nil {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+
+		return c.NoContent(http.StatusOK)
+	})
+
 	e.Start(":1323")
 }
