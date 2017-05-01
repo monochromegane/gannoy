@@ -30,11 +30,10 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	}
 	tree := meta.tree
 	dim := meta.dim
+	K := meta.K
 
 	ann := meta.treePath()
 
-	// K := 3
-	K := 50
 	gannoy := GannoyIndex{
 		meta:      meta,
 		tree:      tree,

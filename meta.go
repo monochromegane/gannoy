@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-func CreateMeta(path, file string, tree, dim int) error {
+func CreateMeta(path, file string, tree, dim, K int) error {
 	database := filepath.Join(path, file+".meta")
 	_, err := os.Stat(database)
 	if err == nil {
@@ -26,6 +26,7 @@ func CreateMeta(path, file string, tree, dim int) error {
 
 	binary.Write(f, binary.BigEndian, int32(tree))
 	binary.Write(f, binary.BigEndian, int32(dim))
+	binary.Write(f, binary.BigEndian, int32(K))
 	roots := make([]int32, tree)
 	for i, _ := range roots {
 		roots[i] = int32(-1)
@@ -40,6 +41,7 @@ type meta struct {
 	file *os.File
 	tree int
 	dim  int
+	K    int
 }
 
 func loadMeta(filename string) (meta, error) {
@@ -53,21 +55,24 @@ func loadMeta(filename string) (meta, error) {
 	syscall.Pread(int(file.Fd()), b, 0)
 
 	buf := bytes.NewReader(b)
-	var tree, dim int32
+	var tree, dim, K int32
 	binary.Read(buf, binary.BigEndian, &tree)
 	binary.Read(buf, binary.BigEndian, &dim)
+	binary.Read(buf, binary.BigEndian, &K)
 
 	return meta{
 		path: filename,
 		file: file,
 		tree: int(tree),
 		dim:  int(dim),
+		K:    int(K),
 	}, nil
 }
 
 func (m meta) rootOffset(index int) int64 {
 	return int64(4 + // tree
 		4 + // dim
+		4 + // K
 		4*index) // roots
 }
 
@@ -79,7 +84,7 @@ func (m meta) roots() []int {
 		Whence: io.SeekStart,
 	})
 	if err != nil {
-		fmt.Printf("fcntl error %v\n", err)
+		return []int{}
 	}
 	defer syscall.FcntlFlock(m.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  m.rootOffset(0),
