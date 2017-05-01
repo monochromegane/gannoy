@@ -3,7 +3,6 @@ package gannoy
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -55,7 +54,7 @@ func (f *File) create(n Node) (int, error) {
 	return id, err
 }
 
-func (f *File) Find(id int) Node {
+func (f *File) Find(id int) (Node, error) {
 	node := Node{}
 	node.id = id
 	node.storage = f
@@ -67,7 +66,7 @@ func (f *File) Find(id int) Node {
 		Whence: io.SeekStart,
 	})
 	if err != nil {
-		fmt.Printf("fcntl error %v\n", err)
+		return node, err
 	}
 	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
 		Start:  offset,
@@ -77,7 +76,10 @@ func (f *File) Find(id int) Node {
 	})
 
 	b := make([]byte, f.nodeSize())
-	syscall.Pread(int(f.file.Fd()), b, offset)
+	_, err = syscall.Pread(int(f.file.Fd()), b, offset)
+	if err != nil {
+		return node, err
+	}
 
 	buf := bytes.NewReader(b)
 
@@ -131,7 +133,7 @@ func (f *File) Find(id int) Node {
 		}
 		node.children = nodeChildren
 	}
-	return node
+	return node, nil
 }
 
 func (f *File) Update(n Node) error {
@@ -195,7 +197,11 @@ func (f *File) Iterate(c chan Node) {
 	count := f.nodeCount()
 	// TODO: Use goroutine
 	for i := 0; i < count; i++ {
-		c <- f.Find(i)
+		n, err := f.Find(i)
+		if err != nil {
+			close(c)
+		}
+		c <- n
 	}
 	close(c)
 }

@@ -55,11 +55,11 @@ func (ns *Nodes) newNode() Node {
 	return node
 }
 
-func (ns Nodes) getNode(id int) Node {
+func (ns Nodes) getNode(id int) (Node, error) {
 	return ns.Storage.Find(id)
 }
 
-func (ns Nodes) getNodeByKey(key int) Node {
+func (ns Nodes) getNodeByKey(key int) (Node, error) {
 	return ns.getNode(ns.maps.getId(key))
 }
 

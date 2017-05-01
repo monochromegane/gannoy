@@ -49,7 +49,12 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 
 func (g GannoyIndex) Tree() {
 	for i, root := range g.meta.roots() {
-		g.walk(i, g.nodes.getNode(root), root, 0)
+		n, err := g.nodes.getNode(root)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			break
+		}
+		g.printTree(i, n, root, 0)
 	}
 }
 
@@ -71,16 +76,15 @@ func (g *GannoyIndex) UpdateItem(key int, w []float64) error {
 	return <-args.result
 }
 
-func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) []int {
-	m := g.nodes.getNodeByKey(key)
-	if !m.isLeaf() {
-		return []int{}
+func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) ([]int, error) {
+	m, err := g.nodes.getNodeByKey(key)
+	if err != nil || !m.isLeaf() {
+		return []int{}, fmt.Errorf("Not found")
 	}
-	keys := g.getAllNns(m.v, n, searchK)
-	return keys
+	return g.getAllNns(m.v, n, searchK)
 }
 
-func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
+func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 	if searchK == -1 {
 		searchK = n * g.tree
 	}
@@ -96,7 +100,10 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 		d := top.priority
 		i := top.value
 
-		nd := g.nodes.getNode(i)
+		nd, err := g.nodes.getNode(i)
+		if err != nil {
+			return []int{}, err
+		}
 		q.Pop()
 		if nd.isLeaf() {
 			nns = append(nns, i)
@@ -118,7 +125,10 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 			continue
 		}
 		last = j
-		node := g.nodes.getNode(j)
+		node, err := g.nodes.getNode(j)
+		if err != nil {
+			return []int{}, err
+		}
 		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, node.v, g.dim), id: node.key})
 	}
 
@@ -135,7 +145,7 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) []int {
 		result[i] = nnsDist[m-1-i].id
 	}
 
-	return result
+	return result, nil
 }
 
 func (g *GannoyIndex) addItem(key int, w []float64) error {
@@ -184,7 +194,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		return
 	}
 	id := g.findBranchByVector(root, n.v)
-	found := g.nodes.getNode(id)
+	found, _ := g.nodes.getNode(id)
 	// fmt.Printf("Found %d\n", item)
 
 	org_parent := found.parents[index]
@@ -214,7 +224,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 			// rootノードの入れ替え
 			g.meta.updateRoot(index, m)
 		} else {
-			parent := g.nodes.getNode(org_parent)
+			parent, _ := g.nodes.getNode(org_parent)
 			parent.nDescendants++
 			children := make([]int, len(parent.children))
 			for i, child := range parent.children {
@@ -238,7 +248,10 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 }
 
 func (g *GannoyIndex) removeItem(key int) error {
-	n := g.nodes.getNodeByKey(key)
+	n, err := g.nodes.getNodeByKey(key)
+	if err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(g.tree)
@@ -272,7 +285,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 		g.meta.updateRoot(root, -1)
 		return
 	}
-	parent := g.nodes.getNode(node.parents[root])
+	parent, _ := g.nodes.getNode(node.parents[root])
 	if parent.isBucket() && len(parent.children) > 2 {
 		// fmt.Printf("pattern bucket\n")
 		target := -1
@@ -299,7 +312,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 		if parent.isRoot(root) {
 			g.meta.updateRoot(root, other)
 		} else {
-			grandParent := g.nodes.getNode(parent.parents[root])
+			grandParent, _ := g.nodes.getNode(parent.parents[root])
 			children := []int{}
 			for _, child := range grandParent.children {
 				if child == node.parents[root] {
@@ -313,7 +326,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 			grandParent.save()
 		}
 
-		otherNode := g.nodes.getNode(other)
+		otherNode, _ := g.nodes.getNode(other)
 		otherNode.updateParents(root, parent.parents[root])
 
 		parent.destroy()
@@ -322,7 +335,7 @@ func (g *GannoyIndex) remove(root int, node Node) {
 }
 
 func (g GannoyIndex) findBranchByVector(id int, v []float64) int {
-	node := g.nodes.getNode(id)
+	node, _ := g.nodes.getNode(id)
 	if node.isLeaf() || node.isBucket() {
 		return id
 	}
@@ -332,7 +345,7 @@ func (g GannoyIndex) findBranchByVector(id int, v []float64) int {
 
 func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
 	if len(ids) == 1 {
-		n := g.nodes.getNode(ids[0])
+		n, _ := g.nodes.getNode(ids[0])
 		if len(n.parents) == 0 {
 			n.parents = make([]int, g.tree)
 		}
@@ -348,7 +361,7 @@ func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
 		m.children = ids
 		m.save()
 		for _, child := range ids {
-			c := g.nodes.getNode(child)
+			c, _ := g.nodes.getNode(child)
 			if len(c.parents) == 0 {
 				c.parents = make([]int, g.tree)
 			}
@@ -359,7 +372,7 @@ func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
 
 	children := make([]Node, len(ids))
 	for i, id := range ids {
-		children[i] = g.nodes.getNode(id)
+		children[i], _ = g.nodes.getNode(id)
 	}
 
 	childrenIds := [2][]int{[]int{}, []int{}}
@@ -371,7 +384,7 @@ func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
 
 	m = g.distance.createSplit(children, g.dim, g.random, m)
 	for _, id := range ids {
-		n := g.nodes.getNode(id)
+		n, _ := g.nodes.getNode(id)
 		side := g.distance.side(m, n.v, g.dim, g.random)
 		childrenIds[side] = append(childrenIds[side], id)
 	}
@@ -427,14 +440,19 @@ func (g *GannoyIndex) builder() {
 	}
 }
 
-func (g GannoyIndex) walk(root int, node Node, id, tab int) {
+func (g GannoyIndex) printTree(root int, node Node, id, tab int) {
 	for i := 0; i < tab*2; i++ {
 		fmt.Print(" ")
 	}
 	fmt.Printf("%d [%d] (%d) [nDescendants: %d, v: %v]\n", id, node.key, node.parents[root], node.nDescendants, node.v)
 	if !node.isLeaf() {
 		for _, child := range node.children {
-			g.walk(root, g.nodes.getNode(child), child, tab+1)
+			n, err := g.nodes.getNode(child)
+			if err != nil {
+				fmt.Printf("%v\n", err)
+				break
+			}
+			g.printTree(root, n, child, tab+1)
 		}
 	}
 }
