@@ -3,6 +3,7 @@ package gannoy
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -17,6 +18,7 @@ type GannoyIndex struct {
 	random    Random
 	nodes     Nodes
 	K         int
+	numWorker int
 	buildChan chan buildArgs
 }
 
@@ -41,6 +43,7 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 		random:    random,
 		K:         K,
 		nodes:     newNodes(ann, tree, dim, K),
+		numWorker: numWorker(tree),
 		buildChan: make(chan buildArgs, 1),
 	}
 	go gannoy.builder()
@@ -170,7 +173,7 @@ func (g *GannoyIndex) addItem(key int, w []float64) error {
 		}
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < g.numWorker; i++ {
 		go worker(n)
 	}
 
@@ -263,7 +266,7 @@ func (g *GannoyIndex) removeItem(key int) error {
 		}
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < g.numWorker; i++ {
 		go worker(n)
 	}
 	for index, _ := range g.meta.roots() {
@@ -454,5 +457,14 @@ func (g GannoyIndex) printTree(root int, node Node, id, tab int) {
 			}
 			g.printTree(root, n, child, tab+1)
 		}
+	}
+}
+
+func numWorker(tree int) int {
+	procs := runtime.GOMAXPROCS(0) // current setting
+	if tree < procs {
+		return tree
+	} else {
+		return procs
 	}
 }
