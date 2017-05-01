@@ -63,13 +63,15 @@ func main() {
 			limit = 10
 		}
 
-		r := databases[database].GetNnsByItem(id, limit, -1)
-		if len(r) == 0 {
+		gannoy := databases[database]
+		r, err := gannoy.GetNnsByKey(id, limit, -1)
+		if err != nil || len(r) == 0 {
 			return c.NoContent(http.StatusNotFound)
 		}
 
 		return c.JSON(http.StatusOK, r)
 	})
+
 	e.PUT("/databases/:database/features/:id", func(c echo.Context) error {
 		database := c.Param("database")
 		if _, ok := databases[database]; !ok {
@@ -91,5 +93,6 @@ func main() {
 		}
 		return c.NoContent(http.StatusOK)
 	})
+
 	e.Start(":1323")
 }
