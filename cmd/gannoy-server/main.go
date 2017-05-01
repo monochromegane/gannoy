@@ -54,9 +54,9 @@ func main() {
 		if _, ok := databases[database]; !ok {
 			return c.NoContent(http.StatusNotFound)
 		}
-		id, err := strconv.Atoi(c.QueryParam("id"))
+		key, err := strconv.Atoi(c.QueryParam("key"))
 		if err != nil {
-			id = -1
+			key = -1
 		}
 		limit, err := strconv.Atoi(c.QueryParam("limit"))
 		if err != nil {
@@ -64,7 +64,7 @@ func main() {
 		}
 
 		gannoy := databases[database]
-		r, err := gannoy.GetNnsByKey(id, limit, -1)
+		r, err := gannoy.GetNnsByKey(key, limit, -1)
 		if err != nil || len(r) == 0 {
 			return c.NoContent(http.StatusNotFound)
 		}
@@ -72,12 +72,12 @@ func main() {
 		return c.JSON(http.StatusOK, r)
 	})
 
-	e.PUT("/databases/:database/features/:id", func(c echo.Context) error {
+	e.PUT("/databases/:database/features/:key", func(c echo.Context) error {
 		database := c.Param("database")
 		if _, ok := databases[database]; !ok {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
-		id, err := strconv.Atoi(c.Param("id"))
+		key, err := strconv.Atoi(c.Param("key"))
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
@@ -87,24 +87,24 @@ func main() {
 		}
 
 		gannoy := databases[database]
-		err = gannoy.AddItem(id, feature.W)
+		err = gannoy.AddItem(key, feature.W)
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 		return c.NoContent(http.StatusOK)
 	})
 
-	e.DELETE("/databases/:database/features/:id", func(c echo.Context) error {
+	e.DELETE("/databases/:database/features/:key", func(c echo.Context) error {
 		database := c.Param("database")
 		if _, ok := databases[database]; !ok {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
-		id, err := strconv.Atoi(c.Param("id"))
+		key, err := strconv.Atoi(c.Param("key"))
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 		gannoy := databases[database]
-		err = gannoy.RemoveItem(id)
+		err = gannoy.RemoveItem(key)
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
