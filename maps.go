@@ -1,6 +1,7 @@
 package gannoy
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -31,17 +32,13 @@ func (m *Maps) remove(key int) {
 	delete(m.keyToId, key)
 }
 
-func (m *Maps) getId(key int) int {
+func (m *Maps) getId(key int) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if id, ok := m.keyToId[key]; !ok {
-		return -1
+		return -1, fmt.Errorf("not found")
 	} else {
-		return id
+		return id, nil
 	}
-}
-
-func (m Maps) offset(index int) int64 {
-	return int64(index * 4)
 }

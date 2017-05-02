@@ -5,8 +5,8 @@ import "testing"
 func TestFreePopEmpty(t *testing.T) {
 	free := newFree()
 	id, err := free.pop()
-	if id != 0 {
-		t.Errorf("Free pop with empty list should return 0, but %d.", id)
+	if id != -1 {
+		t.Errorf("Free pop with empty list should return -1, but %d.", id)
 	}
 	if err == nil {
 		t.Errorf("Free pop with empty list should return error.")

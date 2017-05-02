@@ -60,7 +60,11 @@ func (ns Nodes) getNode(id int) (Node, error) {
 }
 
 func (ns Nodes) getNodeByKey(key int) (Node, error) {
-	return ns.getNode(ns.maps.getId(key))
+	id, err := ns.maps.getId(key)
+	if err != nil {
+		return Node{}, err
+	}
+	return ns.getNode(id)
 }
 
 type Node struct {

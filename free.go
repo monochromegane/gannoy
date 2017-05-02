@@ -29,7 +29,7 @@ func (f *Free) pop() (int, error) {
 	defer f.mu.Unlock()
 
 	if len(f.free) == 0 {
-		return 0, fmt.Errorf("empty")
+		return -1, fmt.Errorf("empty")
 	}
 
 	x, newFree := f.free[len(f.free)-1], f.free[:len(f.free)-1]
