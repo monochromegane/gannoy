@@ -51,7 +51,7 @@ func loadMeta(filename string) (meta, error) {
 	}
 	file, _ := os.OpenFile(filename, os.O_RDWR, 0)
 
-	b := make([]byte, 8)
+	b := make([]byte, 4*3)
 	syscall.Pread(int(file.Fd()), b, 0)
 
 	buf := bytes.NewReader(b)
