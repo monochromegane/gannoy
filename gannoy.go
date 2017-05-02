@@ -113,7 +113,7 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 			dst := nd.children
 			nns = append(nns, dst...)
 		} else {
-			margin := g.distance.margin(nd, v, g.dim)
+			margin := g.distance.margin(nd, v)
 			q.Push(&Queue{priority: math.Min(d, +margin), value: nd.children[1]})
 			q.Push(&Queue{priority: math.Min(d, -margin), value: nd.children[0]})
 		}
@@ -131,7 +131,7 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 		if err != nil {
 			return []int{}, err
 		}
-		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, node.v, g.dim), id: node.key})
+		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, node.v), id: node.key})
 	}
 
 	m := len(nnsDist)
@@ -341,7 +341,7 @@ func (g GannoyIndex) findBranchByVector(id int, v []float64) int {
 	if node.isLeaf() || node.isBucket() {
 		return id
 	}
-	side := g.distance.side(node, v, g.dim, g.random)
+	side := g.distance.side(node, v, g.random)
 	return g.findBranchByVector(node.children[side], v)
 }
 
@@ -384,10 +384,10 @@ func (g *GannoyIndex) makeTree(root, parent int, ids []int) int {
 	m.nDescendants = len(ids)
 	m.parents[root] = parent
 
-	m = g.distance.createSplit(children, g.dim, g.random, m)
+	m = g.distance.createSplit(children, g.random, m)
 	for _, id := range ids {
 		n, _ := g.nodes.getNode(id)
-		side := g.distance.side(m, n.v, g.dim, g.random)
+		side := g.distance.side(m, n.v, g.random)
 		childrenIds[side] = append(childrenIds[side], id)
 	}
 
