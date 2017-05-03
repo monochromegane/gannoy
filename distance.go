@@ -20,7 +20,7 @@ func (a Angular) createSplit(nodes []Node, random Random, n Node) Node {
 	for z, _ := range v {
 		v[z] = bestIv[z] - bestJv[z]
 	}
-	n.v = normalize(n.v)
+	n.v = normalize(v)
 	return n
 }
 
