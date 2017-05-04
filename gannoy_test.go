@@ -401,4 +401,44 @@ func TestGannoyIndexUpdateItem(t *testing.T) {
 
 func TestGannoyIndexGetNnsByKey(t *testing.T) {
 	// search nns (from builded tree file)
+	tree := 2
+	name := "test_gannoy_index_get_nns_by_key"
+	CreateMeta(".", name, tree, 3, 4)
+	defer os.Remove(name + ".meta")
+
+	treeFile := name + ".tree"
+	defer os.Remove(treeFile)
+	gannoy, _ := NewGannoyIndex(name+".meta", Angular{}, &TestLoopRandom{max: 1})
+
+	// remove from bucket node
+	items := [][]float64{
+		{1.1, 1.2, 1.3},
+		{-1.1, -1.2, -1.3},
+		{1.1, 1.2, 1.3},
+		{-1.1, -1.2, -1.3},
+		{-1.1, -1.2, -1.3},
+	}
+	for i, item := range items {
+		gannoy.AddItem(i*10, item)
+	}
+
+	size := 3
+	// Not found key
+	nns, err := gannoy.GetNnsByKey(100, size, -1)
+	if len(nns) != 0 {
+		t.Errorf("GannoyIndex GetNnsByKey should return empty list if key is not found.")
+	}
+	if err == nil {
+		t.Errorf("GannoyIndex GetNnsByKey should return error if key is not found.")
+	}
+
+	// Exist key
+	nns, err = gannoy.GetNnsByKey(40, size, -1)
+	if len(nns) != size {
+		t.Errorf("GannoyIndex GetNnsByKey should return specified size list if key exist.")
+
+	}
+	if err != nil {
+		t.Errorf("GannoyIndex GetNnsByKey should not return error if key exist.")
+	}
 }
