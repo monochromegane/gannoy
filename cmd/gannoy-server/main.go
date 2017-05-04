@@ -40,7 +40,7 @@ func main() {
 			continue
 		}
 		key := strings.TrimSuffix(file.Name(), ".meta")
-		gannoy, err := gannoy.NewGannoyIndex("hoge.meta", gannoy.Angular{}, gannoy.RandRandom{})
+		gannoy, err := gannoy.NewGannoyIndex(filepath.Join(dataDir, file.Name()), gannoy.Angular{}, gannoy.RandRandom{})
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
