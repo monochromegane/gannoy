@@ -26,9 +26,13 @@ func init() {
 }
 
 func main() {
+	if K < 4 {
+		fmt.Fprintf(os.Stderr, "K must be at least 4 or more, but %d.\n", K)
+		os.Exit(1)
+	}
 	err := gannoy.CreateMeta(path, database, tree, dim, K)
 	if err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
