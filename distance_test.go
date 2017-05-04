@@ -63,8 +63,9 @@ func TestAngularCreateSplit(t *testing.T) {
 }
 
 type TestLoopRandom struct {
-	max     int
-	current int
+	max         int
+	current     int
+	flipCurrent int
 }
 
 func (r *TestLoopRandom) index(n int) int {
@@ -73,6 +74,11 @@ func (r *TestLoopRandom) index(n int) int {
 	return index
 }
 
-func (r TestLoopRandom) flip() int {
-	return 0
+func (r *TestLoopRandom) flip() int {
+	r.flipCurrent++
+	if r.flipCurrent%2 == 0 {
+		return 0
+	} else {
+		return 1
+	}
 }
