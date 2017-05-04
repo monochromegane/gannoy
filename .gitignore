@@ -1,3 +1,5 @@
 *.tree
 *.map
 *.meta
+gannoy
+gannoy-server
