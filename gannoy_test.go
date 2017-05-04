@@ -324,7 +324,79 @@ func TestGannoyIndexRemoveItem(t *testing.T) {
 }
 
 func TestGannoyIndexUpdateItem(t *testing.T) {
-	// remove and add item
+	tree := 2
+	name := "test_gannoy_index_update_item"
+	CreateMeta(".", name, tree, 3, 4)
+	defer os.Remove(name + ".meta")
+
+	treeFile := name + ".tree"
+	defer os.Remove(treeFile)
+	gannoy, _ := NewGannoyIndex(name+".meta", Angular{}, &TestLoopRandom{max: 1})
+
+	// remove from bucket node
+	items := [][]float64{
+		{1.1, 1.2, 1.3},
+		{-1.1, -1.2, -1.3},
+		{1.1, 1.2, 1.3},
+		{-1.1, -1.2, -1.3},
+		{-1.1, -1.2, -1.3},
+	}
+	for i, item := range items {
+		gannoy.AddItem(i*10, item)
+	}
+
+	updated, _ := gannoy.nodes.getNodeByKey(30)
+	updatedId := updated.id
+	updatedParents := updated.parents
+
+	// Current tree
+	// 7 [-1] (-1) [nDescendants: 5, v: [0.5280168968110516 0.576018432884782 0.6240199689585159]]
+	//   11 [-1] (7) [nDescendants: 3, v: []]
+	//     1 [10] (11) [nDescendants: 1, v: [-1.1 -1.2 -1.3]]
+	//     5 [30] (11) [nDescendants: 1, v: [-1.1 -1.2 -1.3]]
+	//     6 [40] (11) [nDescendants: 1, v: [-1.1 -1.2 -1.3]]
+	//   9 [-1] (7) [nDescendants: 2, v: []]
+	//     0 [0] (9) [nDescendants: 1, v: [1.1 1.2 1.3]]
+	//     4 [20] (9) [nDescendants: 1, v: [1.1 1.2 1.3]]
+
+	err := gannoy.UpdateItem(30, []float64{1.1, 1.2, 1.3})
+	if err != nil {
+		t.Errorf("GannoyIndex UpdateItem should not return error.")
+	}
+
+	// Expect tree (move to new bucket node)
+	// 7 [-1] (-1) [nDescendants: 5, v: [0.5280168968110516 0.576018432884782 0.6240199689585159]]
+	//   11 [-1] (7) [nDescendants: 2, v: []]
+	//     1 [10] (11) [nDescendants: 1, v: [-1.1 -1.2 -1.3]]
+	//     6 [40] (11) [nDescendants: 1, v: [-1.1 -1.2 -1.3]]
+	//   9 [-1] (7) [nDescendants: 3, v: []]
+	//     0 [0] (9) [nDescendants: 1, v: [1.1 1.2 1.3]]
+	//     4 [20] (9) [nDescendants: 1, v: [1.1 1.2 1.3]]
+	//     5 [30] (9) [nDescendants: 1, v: [1.1 1.2 1.3]]
+
+	for i := 0; i < tree; i++ {
+		updatedParent, _ := gannoy.nodes.getNode(updatedParents[i])
+		for _, c := range updatedParent.children {
+			if c == updatedId {
+				t.Errorf("GannoyIndex UpdateItem should move to new bucket node.")
+			}
+		}
+		grandParent, _ := gannoy.nodes.getNode(updatedParent.parents[i])
+		for _, p := range grandParent.children {
+			if p != updatedParent.id {
+				newParent, _ := gannoy.nodes.getNode(p)
+				contain := false
+				for _, child := range newParent.children {
+					if child == updatedId {
+						contain = true
+					}
+				}
+				if !contain {
+					t.Errorf("2 GannoyIndex UpdateItem should move to new bucket node.")
+				}
+			}
+		}
+	}
 }
 
 func TestGannoyIndexGetNnsByKey(t *testing.T) {
