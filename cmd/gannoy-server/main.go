@@ -1,25 +1,32 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/labstack/echo"
+	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
 )
 
 var (
-	dataDir string
+	dataDir           string
+	withServerStarter bool
 )
 
 func init() {
 	flag.StringVar(&dataDir, "d", ".", "Data directory.")
+	flag.BoolVar(&withServerStarter, "s", false, "With server starter.")
 	flag.Parse()
 }
 
@@ -112,5 +119,32 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
-	e.Start(":1323")
+	address := ":1323"
+	sig := os.Interrupt
+	if withServerStarter {
+		address = ""
+		sig = syscall.SIGTERM
+		listeners, err := listener.ListenAll()
+		if err != nil && err != listener.ErrNoListeningTarget {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		e.Listener = listeners[0]
+	}
+
+	go func() {
+		if err := e.Start(address); err != nil {
+			e.Logger.Info("shutting down the server")
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, sig)
+	<-sigCh
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Fatal(err)
+	}
 }
