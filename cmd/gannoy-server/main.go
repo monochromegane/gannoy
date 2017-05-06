@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,28 +13,30 @@ import (
 	"syscall"
 	"time"
 
+	flags "github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
 )
 
-var (
-	dataDir           string
-	withServerStarter bool
-)
-
-func init() {
-	flag.StringVar(&dataDir, "d", ".", "Data directory.")
-	flag.BoolVar(&withServerStarter, "s", false, "With server starter.")
-	flag.Parse()
+type Options struct {
+	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
+	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 }
+
+var opts Options
 
 type Feature struct {
 	W []float64 `json:"features"`
 }
 
 func main() {
-	files, err := ioutil.ReadDir(dataDir)
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	files, err := ioutil.ReadDir(opts.DataDir)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -47,7 +48,7 @@ func main() {
 			continue
 		}
 		key := strings.TrimSuffix(file.Name(), ".meta")
-		gannoy, err := gannoy.NewGannoyIndex(filepath.Join(dataDir, file.Name()), gannoy.Angular{}, gannoy.RandRandom{})
+		gannoy, err := gannoy.NewGannoyIndex(filepath.Join(opts.DataDir, file.Name()), gannoy.Angular{}, gannoy.RandRandom{})
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -121,7 +122,7 @@ func main() {
 
 	address := ":1323"
 	sig := os.Interrupt
-	if withServerStarter {
+	if opts.WithServerStarter {
 		address = ""
 		sig = syscall.SIGTERM
 		listeners, err := listener.ListenAll()
