@@ -15,12 +15,14 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
 )
 
 type Options struct {
 	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
+	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 }
@@ -36,6 +38,16 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+
+	e := echo.New()
+
+	log, err := initializeLog(opts.LogDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	e.Logger.SetOutput(log)
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: log}))
 
 	files, err := ioutil.ReadDir(opts.DataDir)
 	if err != nil {
@@ -57,7 +69,6 @@ func main() {
 		databases[key] = gannoy
 	}
 
-	e := echo.New()
 	e.GET("/search", func(c echo.Context) error {
 		database := c.QueryParam("database")
 		if _, ok := databases[database]; !ok {
@@ -149,4 +160,14 @@ func main() {
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Fatal(err)
 	}
+}
+
+func initializeLog(logDir string) (*os.File, error) {
+	if logDir == "" {
+		return os.Stdout, nil
+	}
+	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
+		return nil, err
+	}
+	return os.OpenFile("access.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 }
