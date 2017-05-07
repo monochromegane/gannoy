@@ -22,6 +22,7 @@ import (
 type Options struct {
 	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
+	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 }
 
 var opts Options
@@ -143,7 +144,7 @@ func main() {
 	signal.Notify(sigCh, sig)
 	<-sigCh
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(opts.ShutDownTimeout)*time.Second)
 	defer cancel()
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Fatal(err)
