@@ -18,11 +18,13 @@ import (
 	"github.com/labstack/echo/middleware"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
+	"github.com/nightlyone/lockfile"
 )
 
 type Options struct {
 	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
 	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
+	LockDir           string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 }
@@ -37,6 +39,23 @@ func main() {
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		os.Exit(1)
+	}
+
+	// Wait old process finishing.
+	if opts.WithServerStarter {
+		lock, err := initializeLock(opts.LockDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		defer lock.Unlock()
+		for {
+			if err := lock.TryLock(); err != nil {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break
+		}
 	}
 
 	e := echo.New()
@@ -170,4 +189,19 @@ func initializeLog(logDir string) (*os.File, error) {
 		return nil, err
 	}
 	return os.OpenFile("access.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+}
+
+func initializeLock(lockDir string) (lockfile.Lockfile, error) {
+	if err := os.MkdirAll(lockDir, os.ModePerm); err != nil {
+		return "", err
+	}
+	lock := "gannoy-server.lock"
+	if !filepath.IsAbs(lockDir) {
+		lockDir, err := filepath.Abs(lockDir)
+		if err != nil {
+			return lockfile.Lockfile(""), err
+		}
+		return lockfile.New(filepath.Join(lockDir, lock))
+	}
+	return lockfile.New(filepath.Join(lockDir, lock))
 }
