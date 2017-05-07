@@ -39,7 +39,7 @@ func main() {
 
 	files, err := ioutil.ReadDir(opts.DataDir)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
@@ -51,7 +51,7 @@ func main() {
 		key := strings.TrimSuffix(file.Name(), ".meta")
 		gannoy, err := gannoy.NewGannoyIndex(filepath.Join(opts.DataDir, file.Name()), gannoy.Angular{}, gannoy.RandRandom{})
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		databases[key] = gannoy
@@ -128,7 +128,7 @@ func main() {
 		sig = syscall.SIGTERM
 		listeners, err := listener.ListenAll()
 		if err != nil && err != listener.ErrNoListeningTarget {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 		e.Listener = listeners[0]
