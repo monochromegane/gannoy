@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -60,6 +61,7 @@ func main() {
 
 	e := echo.New()
 
+	// initialize log
 	log, err := initializeLog(opts.LogDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -68,26 +70,49 @@ func main() {
 	e.Logger.SetOutput(log)
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: log}))
 
+	// Load meta files
 	files, err := ioutil.ReadDir(opts.DataDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
+	metaCh := make(chan string, len(files))
+	gannoyCh := make(chan gannoy.GannoyIndex)
+	errCh := make(chan error)
 	databases := map[string]gannoy.GannoyIndex{}
+	var metaCount int
 	for _, file := range files {
 		if file.IsDir() || filepath.Ext(file.Name()) != ".meta" {
 			continue
 		}
-		key := strings.TrimSuffix(file.Name(), ".meta")
-		gannoy, err := gannoy.NewGannoyIndex(filepath.Join(opts.DataDir, file.Name()), gannoy.Angular{}, gannoy.RandRandom{})
-		if err != nil {
+		metaCh <- filepath.Join(opts.DataDir, file.Name())
+		metaCount++
+	}
+
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+		go gannoyIndexInitializer(metaCh, gannoyCh, errCh)
+	}
+
+loop:
+	for {
+		select {
+		case gannoy := <-gannoyCh:
+			key := strings.TrimSuffix(gannoy.MetaFile(), ".meta")
+			databases[key] = gannoy
+			if len(databases) >= metaCount {
+				close(metaCh)
+				close(gannoyCh)
+				close(errCh)
+				break loop
+			}
+		case err := <-errCh:
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		databases[key] = gannoy
 	}
 
+	// Define API
 	e.GET("/search", func(c echo.Context) error {
 		database := c.QueryParam("database")
 		if _, ok := databases[database]; !ok {
@@ -151,6 +176,7 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
+	// Start server
 	address := ":1323"
 	sig := os.Interrupt
 	if opts.WithServerStarter {
@@ -204,4 +230,15 @@ func initializeLock(lockDir string) (lockfile.Lockfile, error) {
 		return lockfile.New(filepath.Join(lockDir, lock))
 	}
 	return lockfile.New(filepath.Join(lockDir, lock))
+}
+
+func gannoyIndexInitializer(metaCh chan string, gannoyCh chan gannoy.GannoyIndex, errCh chan error) {
+	for meta := range metaCh {
+		gannoy, err := gannoy.NewGannoyIndex(meta, gannoy.Angular{}, gannoy.RandRandom{})
+		if err == nil {
+			gannoyCh <- gannoy
+		} else {
+			errCh <- err
+		}
+	}
 }

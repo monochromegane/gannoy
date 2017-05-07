@@ -60,6 +60,10 @@ func (g GannoyIndex) Tree() {
 	}
 }
 
+func (g GannoyIndex) MetaFile() string {
+	return g.meta.file.Name()
+}
+
 func (g *GannoyIndex) AddItem(key int, w []float64) error {
 	args := buildArgs{action: ADD, key: key, w: w, result: make(chan error)}
 	g.buildChan <- args
