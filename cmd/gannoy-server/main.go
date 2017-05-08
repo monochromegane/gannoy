@@ -216,7 +216,7 @@ func initializeLog(logDir string) (*os.File, error) {
 	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	return os.OpenFile("access.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	return os.OpenFile(filepath.Join(logDir, "access.log"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 }
 
 func initializeLock(lockDir string) (lockfile.Lockfile, error) {
