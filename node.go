@@ -59,7 +59,7 @@ func (ns Nodes) getNode(id int) (Node, error) {
 	return ns.Storage.Find(id)
 }
 
-func (ns Nodes) getNodeByKey(key int) (Node, error) {
+func (ns *Nodes) getNodeByKey(key int) (Node, error) {
 	id, err := ns.maps.getId(key)
 	if err != nil {
 		return Node{}, err
