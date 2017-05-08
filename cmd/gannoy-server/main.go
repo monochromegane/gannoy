@@ -17,6 +17,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
 	"github.com/nightlyone/lockfile"
@@ -62,13 +63,14 @@ func main() {
 	e := echo.New()
 
 	// initialize log
-	log, err := initializeLog(opts.LogDir)
+	l, err := initializeLog(opts.LogDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	e.Logger.SetOutput(log)
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: log}))
+	e.Logger.SetLevel(log.INFO)
+	e.Logger.SetOutput(l)
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: l}))
 
 	// Load meta files
 	files, err := ioutil.ReadDir(opts.DataDir)
@@ -98,7 +100,7 @@ loop:
 	for {
 		select {
 		case gannoy := <-gannoyCh:
-			key := strings.TrimSuffix(gannoy.MetaFile(), ".meta")
+			key := strings.TrimSuffix(filepath.Base(gannoy.MetaFile()), ".meta")
 			databases[key] = gannoy
 			if len(databases) >= metaCount {
 				close(metaCh)
