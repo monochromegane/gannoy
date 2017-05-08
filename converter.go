@@ -8,26 +8,29 @@ import (
 	"syscall"
 )
 
-func NewConverter(dim int, order binary.ByteOrder) converter {
+func NewConverter(dim, tree, K int, order binary.ByteOrder) converter {
 	return converter{
-		dim: dim,
-
+		dim:   dim,
+		tree:  tree,
+		K:     K,
 		order: order,
 	}
 }
 
 type converter struct {
 	dim   int
+	tree  int
+	K     int
 	order binary.ByteOrder
 }
 
-func (c converter) Convert(from, to string, tree int) error {
+func (c converter) Convert(from, path, to string) error {
 	ann, err := os.Open(from)
 	if err != nil {
 		return err
 	}
 
-	err = CreateMeta(".", to, tree, c.dim, 50)
+	err = CreateMeta(path, to, c.tree, c.dim, c.K)
 	if err != nil {
 		return err
 	}
