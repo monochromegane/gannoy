@@ -16,7 +16,6 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/gannoy"
@@ -70,7 +69,6 @@ func main() {
 	}
 	e.Logger.SetLevel(log.INFO)
 	e.Logger.SetOutput(l)
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: l}))
 
 	// Load meta files
 	files, err := ioutil.ReadDir(opts.DataDir)
@@ -216,7 +214,7 @@ func initializeLog(logDir string) (*os.File, error) {
 	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	return os.OpenFile(filepath.Join(logDir, "access.log"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	return os.OpenFile(filepath.Join(logDir, "db.log"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 }
 
 func initializeLock(lockDir string) (lockfile.Lockfile, error) {
