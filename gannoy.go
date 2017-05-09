@@ -155,6 +155,9 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 }
 
 func (g *GannoyIndex) addItem(key int, w []float64) error {
+	if len(w) != g.dim {
+		return fmt.Errorf("Dimension mismatch. expect %d, but %d.\n", g.dim, len(w))
+	}
 	n := g.nodes.newNode()
 	n.key = key
 	n.v = w
