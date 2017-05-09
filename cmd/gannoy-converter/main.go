@@ -14,6 +14,7 @@ type Options struct {
 	Tree int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
 	K    int    `short:"K" long:"K" default:"50" description:"Specify max node size in a bucket node."`
 	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
+	Maps string `short:"m" long:"map-path" default:"" description:"Specify key and index mapping CSV file, if exist."`
 }
 
 var opts Options
@@ -31,7 +32,7 @@ func main() {
 	}
 
 	converter := gannoy.NewConverter(opts.Dim, opts.Tree, opts.K, binary.LittleEndian)
-	err = converter.Convert(args[0], opts.Path, args[1])
+	err = converter.Convert(args[0], opts.Path, args[1], opts.Maps)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
