@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
 )
@@ -47,7 +48,7 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 		return err
 	}
 
-	gannoy, err := NewGannoyIndex(to+".meta", Angular{}, RandRandom{})
+	gannoy, err := NewGannoyIndex(filepath.Join(path, to+".meta"), Angular{}, RandRandom{})
 	if err != nil {
 		return err
 	}
