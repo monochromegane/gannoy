@@ -173,7 +173,6 @@ func (g *GannoyIndex) addItem(key int, w []float64) error {
 	buildChan := make(chan int, g.tree)
 	worker := func(n Node) {
 		for index := range buildChan {
-			// fmt.Printf("root: %d\n", g.meta.roots()[index])
 			g.build(index, g.meta.roots()[index], n)
 			wg.Done()
 		}
@@ -228,8 +227,7 @@ func (g *GannoyIndex) build(index, root int, n Node) {
 		}
 
 		m := g.makeTree(index, org_parent, indices)
-		// fmt.Printf("m: %d, org_parent: %d\n", m, org_parent)
-		if org_parent == -1 {
+		if root == 0 || org_parent == 0 || org_parent == -1 {
 			// rootノードの入れ替え
 			g.meta.updateRoot(index, m)
 		} else {

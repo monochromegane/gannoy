@@ -126,7 +126,7 @@ func (m meta) updateRoot(index, root int) error {
 	binary.Write(buf, binary.BigEndian, int32(root))
 	_, err = syscall.Pwrite(int(m.file.Fd()), buf.Bytes(), offset)
 	if err != nil {
-		fmt.Printf("%v\n", err)
+		return err
 	}
 
 	return err
