@@ -2,13 +2,32 @@ package gannoy
 
 import (
 	"io"
+	"os/exec"
+	"strings"
 	"syscall"
+
+	"github.com/coreos/go-semver/semver"
 )
 
 type Locker interface {
 	ReadLock(uintptr, int64, int64) error
 	WriteLock(uintptr, int64, int64) error
 	UnLock(uintptr, int64, int64) error
+}
+
+func newLocker() Locker {
+	bytes, err := exec.Command("uname", "-sr").Output()
+	if err != nil {
+		return Flock{}
+	}
+	kernel := strings.Split(strings.TrimRight(string(bytes), "\n"), " ")
+	if len(kernel) != 2 {
+		return Flock{}
+	}
+	if kernel[0] == "Linux" && !semver.New(kernel[1]).LessThan(*semver.New("3.15.0")) {
+		return Fcntl{}
+	}
+	return Flock{}
 }
 
 // Only Linux and kernel version 3.15 or later.

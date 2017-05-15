@@ -37,8 +37,7 @@ func newFile(filename string, tree, dim, K int) *File {
 		filename:   filename,
 		appendFile: appendFile,
 		createChan: make(chan createArgs, 1),
-		// locker:     Fcntl{},
-		locker: Flock{},
+		locker:     newLocker(),
 	}
 	go f.creator()
 	return f
