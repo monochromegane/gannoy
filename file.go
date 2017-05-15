@@ -13,8 +13,10 @@ type File struct {
 	dim        int
 	K          int
 	file       *os.File
+	filename   string
 	appendFile *os.File
 	createChan chan createArgs
+	locker     Locker
 }
 
 func newFile(filename string, tree, dim, K int) *File {
@@ -32,8 +34,11 @@ func newFile(filename string, tree, dim, K int) *File {
 		dim:        dim,
 		K:          K,
 		file:       file,
+		filename:   filename,
 		appendFile: appendFile,
 		createChan: make(chan createArgs, 1),
+		// locker:     Fcntl{},
+		locker: Flock{},
 	}
 	go f.creator()
 	return f
@@ -59,21 +64,11 @@ func (f *File) Find(id int) (Node, error) {
 	node.id = id
 	node.storage = f
 	offset := f.offset(id)
-	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_RDLCK,
-		Whence: io.SeekStart,
-	})
+	err := f.locker.ReadLock(f.file.Fd(), offset, f.nodeSize())
 	if err != nil {
 		return node, err
 	}
-	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekStart,
-	})
+	defer f.locker.UnLock(f.file.Fd(), offset, f.nodeSize())
 
 	b := make([]byte, f.nodeSize())
 	_, err = syscall.Pread(int(f.file.Fd()), b, offset)
@@ -140,23 +135,16 @@ func (f *File) Update(n Node) error {
 	buf := &bytes.Buffer{}
 	f.nodeToBuf(buf, n)
 	offset := f.offset(n.id)
+	file, _ := os.OpenFile(f.filename, os.O_RDWR, 0)
+	defer file.Close()
 
-	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_WRLCK,
-		Whence: io.SeekStart,
-	})
+	err := f.locker.WriteLock(file.Fd(), offset, f.nodeSize())
 	if err != nil {
 		return err
 	}
-	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    f.nodeSize(),
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekStart,
-	})
-	_, err = syscall.Pwrite(int(f.file.Fd()), buf.Bytes(), offset)
+	defer f.locker.UnLock(file.Fd(), offset, f.nodeSize())
+
+	_, err = syscall.Pwrite(int(file.Fd()), buf.Bytes(), offset)
 	return err
 }
 
@@ -169,22 +157,16 @@ func (f *File) UpdateParent(id, rootIndex, parent int) error {
 	buf := &bytes.Buffer{}
 	binary.Write(buf, binary.BigEndian, int32(parent))
 
-	err := syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    4,
-		Type:   syscall.F_WRLCK,
-		Whence: io.SeekStart,
-	})
+	file, _ := os.OpenFile(f.filename, os.O_RDWR, 0)
+	defer file.Close()
+
+	err := f.locker.WriteLock(file.Fd(), offset, 4)
 	if err != nil {
 		return err
 	}
-	defer syscall.FcntlFlock(f.file.Fd(), syscall.F_SETLKW, &syscall.Flock_t{
-		Start:  offset,
-		Len:    4,
-		Type:   syscall.F_UNLCK,
-		Whence: io.SeekStart,
-	})
-	_, err = syscall.Pwrite(int(f.file.Fd()), buf.Bytes(), offset)
+	defer f.locker.UnLock(file.Fd(), offset, 4)
+
+	_, err = syscall.Pwrite(int(file.Fd()), buf.Bytes(), offset)
 	return err
 }
 
@@ -275,4 +257,9 @@ func (f *File) creator() {
 			err: err,
 		}
 	}
+}
+
+func (f File) size() int64 {
+	info, _ := f.file.Stat()
+	return info.Size()
 }
