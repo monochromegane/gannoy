@@ -11,7 +11,6 @@ import (
 type CreateCommand struct {
 	Dim  int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
 	Tree int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
-	K    int    `short:"K" long:"K" default:"50" description:"Specify max node size in a bucket node."`
 	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
 }
 
@@ -21,10 +20,7 @@ func (c *CreateCommand) Execute(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("database name not specified.")
 	}
-	if c.K < 4 {
-		return fmt.Errorf("K must be at least 4 or more, but %d.", c.K)
-	}
-	err := gannoy.CreateMeta(c.Path, args[0], c.Tree, c.Dim, c.K)
+	err := gannoy.CreateMeta(c.Path, args[0], c.Tree, c.Dim, c.Dim*2)
 	if err != nil {
 		return err
 	}
