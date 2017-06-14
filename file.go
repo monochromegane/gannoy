@@ -99,12 +99,14 @@ func (f *File) Find(id int) (Node, error) {
 
 	if node.nDescendants == 1 {
 		// leaf node
+		buf.Seek(int64(4*2), io.SeekCurrent) // skip children
+		node.children = []int{0, 0}
+
 		vec := make([]float64, f.dim)
 		binary.Read(buf, binary.BigEndian, &vec)
 		node.v = vec
 	} else if node.nDescendants <= f.K {
 		// bucket node
-		buf.Seek(int64(8*f.dim), io.SeekCurrent) // skip v
 		children := make([]int32, nDescendants)
 		binary.Read(buf, binary.BigEndian, &children)
 		nodeChildren := make([]int, nDescendants)
@@ -112,13 +114,8 @@ func (f *File) Find(id int) (Node, error) {
 			nodeChildren[i] = int(child)
 		}
 		node.children = nodeChildren
-
 	} else {
 		// other node
-		vec := make([]float64, f.dim)
-		binary.Read(buf, binary.BigEndian, &vec)
-		node.v = vec
-
 		children := make([]int32, 2)
 		binary.Read(buf, binary.BigEndian, &children)
 		nodeChildren := make([]int, 2)
@@ -126,6 +123,10 @@ func (f *File) Find(id int) (Node, error) {
 			nodeChildren[i] = int(child)
 		}
 		node.children = nodeChildren
+
+		vec := make([]float64, f.dim)
+		binary.Read(buf, binary.BigEndian, &vec)
+		node.v = vec
 	}
 	return node, nil
 }
@@ -202,8 +203,8 @@ func (f File) nodeSize() int64 {
 		4 + // nDescendants
 		4 + // key
 		4*f.tree + // parents
-		8*f.dim + // v
-		4*f.K) // children
+		4*2 + // children
+		8*f.dim) // v
 }
 
 func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
@@ -223,19 +224,32 @@ func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
 	}
 	binary.Write(buf, binary.BigEndian, parents)
 
-	// 8bytes v in f
-	vec := make([]float64, f.dim)
-	for i, v := range node.v {
-		vec[i] = float64(v)
-	}
-	binary.Write(buf, binary.BigEndian, vec)
+	if node.isBucket() {
+		// 4bytes children in K
+		children := make([]int32, f.K)
+		for i, child := range node.children {
+			children[i] = int32(child)
+		}
+		binary.Write(buf, binary.BigEndian, children)
 
-	// 4bytes children in K
-	children := make([]int32, f.K)
-	for i, child := range node.children {
-		children[i] = int32(child)
+		// padding by zero
+		remainingSize := ((2*4 + 8*f.dim) - (4 * f.K))
+		binary.Write(buf, binary.BigEndian, make([]int32, remainingSize/4))
+	} else {
+		// 4bytes children in K
+		children := make([]int32, 2)
+		for i, child := range node.children {
+			children[i] = int32(child)
+		}
+		binary.Write(buf, binary.BigEndian, children)
+
+		// 8bytes v in f
+		vec := make([]float64, f.dim)
+		for i, v := range node.v {
+			vec[i] = float64(v)
+		}
+		binary.Write(buf, binary.BigEndian, vec)
 	}
-	binary.Write(buf, binary.BigEndian, children)
 }
 
 type createArgs struct {
