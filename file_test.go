@@ -8,7 +8,7 @@ import (
 func TestFileCreateAndFind(t *testing.T) {
 	name := "test_file_create_and_find.tree"
 	defer os.Remove(name)
-	file := newFile(name, 2, 3, 4)
+	file := newFile(name, 2, 3, 6)
 
 	nodes := []Node{
 		// Leaf node
@@ -16,6 +16,7 @@ func TestFileCreateAndFind(t *testing.T) {
 			key:          10,
 			nDescendants: 1,
 			parents:      []int{2, 3},
+			children:     []int{0, 0},
 			v:            []float64{1.1, 1.2, 1.3},
 		},
 		// Bucket node
