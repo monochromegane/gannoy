@@ -124,10 +124,12 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 	}
 
 	sort.Ints(nns)
-	nnsDist := []sorter{}
+	nnsDist := make([]sorter, len(nns))
 	last := -1
-	for _, j := range nns {
+	dup := 0
+	for idx, j := range nns {
 		if j == last {
+			dup++
 			continue
 		}
 		last = j
@@ -135,8 +137,9 @@ func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
 		if err != nil {
 			return []int{}, err
 		}
-		nnsDist = append(nnsDist, sorter{value: g.distance.distance(v, node.v), id: node.key})
+		nnsDist[idx-dup] = sorter{value: g.distance.distance(v, node.v), id: node.key}
 	}
+	nnsDist = nnsDist[:len(nns)-dup]
 
 	m := len(nnsDist)
 	p := m
