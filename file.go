@@ -17,6 +17,7 @@ type File struct {
 	appendFile *os.File
 	createChan chan createArgs
 	locker     Locker
+	nodeSize   int64
 }
 
 func newFile(filename string, tree, dim, K int) *File {
@@ -38,6 +39,12 @@ func newFile(filename string, tree, dim, K int) *File {
 		appendFile: appendFile,
 		createChan: make(chan createArgs, 1),
 		locker:     newLocker(),
+		nodeSize: int64(1 + // free
+			4 + // nDescendants
+			4 + // key
+			4*tree + // parents
+			4*2 + // children
+			8*dim), // v
 	}
 	go f.creator()
 	return f
@@ -63,13 +70,13 @@ func (f *File) Find(id int) (Node, error) {
 	node.id = id
 	node.storage = f
 	offset := f.offset(id)
-	err := f.locker.ReadLock(f.file.Fd(), offset, f.nodeSize())
+	err := f.locker.ReadLock(f.file.Fd(), offset, f.nodeSize)
 	if err != nil {
 		return node, err
 	}
-	defer f.locker.UnLock(f.file.Fd(), offset, f.nodeSize())
+	defer f.locker.UnLock(f.file.Fd(), offset, f.nodeSize)
 
-	b := make([]byte, f.nodeSize())
+	b := make([]byte, f.nodeSize)
 	_, err = syscall.Pread(int(f.file.Fd()), b, offset)
 	if err != nil {
 		return node, err
@@ -138,11 +145,11 @@ func (f *File) Update(n Node) error {
 	file, _ := os.OpenFile(f.filename, os.O_RDWR, 0)
 	defer file.Close()
 
-	err := f.locker.WriteLock(file.Fd(), offset, f.nodeSize())
+	err := f.locker.WriteLock(file.Fd(), offset, f.nodeSize)
 	if err != nil {
 		return err
 	}
-	defer f.locker.UnLock(file.Fd(), offset, f.nodeSize())
+	defer f.locker.UnLock(file.Fd(), offset, f.nodeSize)
 
 	_, err = syscall.Pwrite(int(file.Fd()), buf.Bytes(), offset)
 	return err
@@ -189,22 +196,13 @@ func (f *File) Iterate(c chan Node) {
 }
 
 func (f File) offset(id int) int64 {
-	return (int64(id) * f.nodeSize())
+	return (int64(id) * f.nodeSize)
 }
 
 func (f File) nodeCount() int {
 	stat, _ := f.file.Stat()
 	size := stat.Size()
-	return int(size / f.nodeSize())
-}
-
-func (f File) nodeSize() int64 {
-	return int64(1 + // free
-		4 + // nDescendants
-		4 + // key
-		4*f.tree + // parents
-		4*2 + // children
-		8*f.dim) // v
+	return int(size / f.nodeSize)
 }
 
 func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
