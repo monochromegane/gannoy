@@ -3,7 +3,7 @@ package gannoy
 import (
 	"bytes"
 	"encoding/binary"
-	"io"
+	"math"
 	"os"
 	"syscall"
 )
@@ -18,6 +18,7 @@ type File struct {
 	createChan chan createArgs
 	locker     Locker
 	nodeSize   int64
+	offsetOfV  int64
 }
 
 func newFile(filename string, tree, dim, K int) *File {
@@ -45,6 +46,11 @@ func newFile(filename string, tree, dim, K int) *File {
 			4*tree + // parents
 			4*2 + // children
 			8*dim), // v
+		offsetOfV: int64(1 + // free
+			4 + // nDescendants
+			4 + // key
+			4*tree + // parents
+			4*2), // children
 	}
 	go f.creator()
 	return f
@@ -106,12 +112,8 @@ func (f *File) Find(id int) (Node, error) {
 
 	if node.nDescendants == 1 {
 		// leaf node
-		buf.Seek(int64(4*2), io.SeekCurrent) // skip children
-		node.children = []int{0, 0}
-
-		vec := make([]float64, f.dim)
-		binary.Read(buf, binary.BigEndian, &vec)
-		node.v = vec
+		node.children = []int{0, 0} // skip children
+		node.v = bytesToFloat64s(b[f.offsetOfV:])
 	} else if node.nDescendants <= f.K {
 		// bucket node
 		children := make([]int32, nDescendants)
@@ -130,10 +132,7 @@ func (f *File) Find(id int) (Node, error) {
 			nodeChildren[i] = int(child)
 		}
 		node.children = nodeChildren
-
-		vec := make([]float64, f.dim)
-		binary.Read(buf, binary.BigEndian, &vec)
-		node.v = vec
+		node.v = bytesToFloat64s(b[f.offsetOfV:])
 	}
 	return node, nil
 }
@@ -273,4 +272,14 @@ func (f *File) creator() {
 func (f File) size() int64 {
 	info, _ := f.file.Stat()
 	return info.Size()
+}
+
+func bytesToFloat64s(bytes []byte) []float64 {
+	size := len(bytes) / 8
+	floats := make([]float64, size)
+	for i := 0; i < size; i++ {
+		floats[i] = math.Float64frombits(binary.BigEndian.Uint64(bytes[0:8]))
+		bytes = bytes[8:]
+	}
+	return floats
 }
