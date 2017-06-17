@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/netutil"
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
@@ -28,6 +31,7 @@ type Options struct {
 	LockDir           string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
+	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
 }
 
 var opts Options
@@ -177,21 +181,26 @@ loop:
 	})
 
 	// Start server
-	address := ":1323"
 	sig := os.Interrupt
 	if opts.WithServerStarter {
-		address = ""
 		sig = syscall.SIGTERM
 		listeners, err := listener.ListenAll()
 		if err != nil && err != listener.ErrNoListeningTarget {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		e.Listener = listeners[0]
+		e.Listener = netutil.LimitListener(listeners[0], opts.MaxConnections)
+	} else {
+		l, err := net.Listen("tcp", ":1323")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		e.Listener = netutil.LimitListener(l, opts.MaxConnections)
 	}
 
 	go func() {
-		if err := e.Start(address); err != nil {
+		if err := e.Start(""); err != nil {
 			e.Logger.Info("shutting down the server")
 		}
 	}()
