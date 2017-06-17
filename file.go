@@ -88,27 +88,14 @@ func (f *File) Find(id int) (Node, error) {
 		return node, err
 	}
 
-	buf := bytes.NewReader(b)
+	node.free = b[0] != 0
+	node.nDescendants = int(int32(binary.BigEndian.Uint32(b[1:5])))
+	node.key = int(int32(binary.BigEndian.Uint32(b[5:9])))
 
-	var free bool
-	binary.Read(buf, binary.BigEndian, &free)
-	node.free = free
-
-	var nDescendants int32
-	binary.Read(buf, binary.BigEndian, &nDescendants)
-	node.nDescendants = int(nDescendants)
-
-	var key int32
-	binary.Read(buf, binary.BigEndian, &key)
-	node.key = int(key)
-
-	parents := make([]int32, f.tree)
-	binary.Read(buf, binary.BigEndian, &parents)
-	nodeParents := make([]int, f.tree)
-	for i, parent := range parents {
-		nodeParents[i] = int(parent)
+	node.parents = make([]int, f.tree)
+	for i := 0; i < f.tree; i++ {
+		node.parents[i] = int(int32(binary.BigEndian.Uint32(b[9+i*4 : 9+i*4+4])))
 	}
-	node.parents = nodeParents
 
 	if node.nDescendants == 1 {
 		// leaf node
@@ -116,22 +103,18 @@ func (f *File) Find(id int) (Node, error) {
 		node.v = bytesToFloat64s(b[f.offsetOfV:])
 	} else if node.nDescendants <= f.K {
 		// bucket node
-		children := make([]int32, nDescendants)
-		binary.Read(buf, binary.BigEndian, &children)
-		nodeChildren := make([]int, nDescendants)
-		for i, child := range children {
-			nodeChildren[i] = int(child)
+		node.children = make([]int, node.nDescendants)
+		offsetOfChildren := int(f.offsetOfV - (4 * 2))
+		for i := 0; i < node.nDescendants; i++ {
+			node.children[i] = int(int32(binary.BigEndian.Uint32(b[offsetOfChildren+i*4 : offsetOfChildren+i*4+4])))
 		}
-		node.children = nodeChildren
 	} else {
 		// other node
-		children := make([]int32, 2)
-		binary.Read(buf, binary.BigEndian, &children)
-		nodeChildren := make([]int, 2)
-		for i, child := range children {
-			nodeChildren[i] = int(child)
+		node.children = make([]int, 2)
+		offsetOfChildren := int(f.offsetOfV - (4 * 2))
+		for i := 0; i < 2; i++ {
+			node.children[i] = int(int32(binary.BigEndian.Uint32(b[offsetOfChildren+i*4 : offsetOfChildren+i*4+4])))
 		}
-		node.children = nodeChildren
 		node.v = bytesToFloat64s(b[f.offsetOfV:])
 	}
 	return node, nil
