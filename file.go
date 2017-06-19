@@ -64,10 +64,8 @@ func (f *File) Create(n Node) (int, error) {
 }
 
 func (f *File) create(n Node) (int, error) {
-	buf := &bytes.Buffer{}
-	f.nodeToBuf(buf, n)
 	id := f.nodeCount()
-	_, err := f.appendFile.Write(buf.Bytes())
+	_, err := f.appendFile.Write(f.nodeToBytes(n))
 	return id, err
 }
 
@@ -121,8 +119,7 @@ func (f *File) Find(id int) (Node, error) {
 }
 
 func (f *File) Update(n Node) error {
-	buf := &bytes.Buffer{}
-	f.nodeToBuf(buf, n)
+	bytes := f.nodeToBytes(n)
 	offset := f.offset(n.id)
 	file, _ := os.OpenFile(f.filename, os.O_RDWR, 0)
 	defer file.Close()
@@ -133,7 +130,7 @@ func (f *File) Update(n Node) error {
 	}
 	defer f.locker.UnLock(file.Fd(), offset, f.nodeSize)
 
-	_, err = syscall.Pwrite(int(file.Fd()), buf.Bytes(), offset)
+	_, err = syscall.Pwrite(int(file.Fd()), bytes, offset)
 	return err
 }
 
@@ -187,49 +184,43 @@ func (f File) nodeCount() int {
 	return int(size / f.nodeSize)
 }
 
-func (f File) nodeToBuf(buf *bytes.Buffer, node Node) {
+func (f File) nodeToBytes(node Node) []byte {
+	bytes := make([]byte, f.nodeSize)
+
 	// 1bytes free
-	binary.Write(buf, binary.BigEndian, node.free)
-
-	// 4bytes nDescendants
-	binary.Write(buf, binary.BigEndian, int32(node.nDescendants))
-
-	// 4bytes key
-	binary.Write(buf, binary.BigEndian, int32(node.key))
-
-	// 4bytes parents
-	parents := make([]int32, len(node.parents))
-	for i, parent := range node.parents {
-		parents[i] = int32(parent)
+	if node.free {
+		bytes[0] = 1
+	} else {
+		bytes[0] = 0
 	}
-	binary.Write(buf, binary.BigEndian, parents)
-
+	// 4bytes nDescendants
+	binary.BigEndian.PutUint32(bytes[1:5], uint32(node.nDescendants))
+	// 4bytes key
+	binary.BigEndian.PutUint32(bytes[5:9], uint32(node.key))
+	// 4bytes parents
+	for i := 0; i < f.tree; i++ {
+		binary.BigEndian.PutUint32(bytes[9+i*4:9+i*4+4], uint32(node.parents[i]))
+	}
 	if node.isBucket() {
 		// 4bytes children in K
-		children := make([]int32, f.K)
+		offsetOfChildren := int(f.offsetOfV - (4 * 2))
 		for i, child := range node.children {
-			children[i] = int32(child)
+			binary.BigEndian.PutUint32(bytes[offsetOfChildren+i*4:offsetOfChildren+i*4+4], uint32(child))
 		}
-		binary.Write(buf, binary.BigEndian, children)
-
-		// padding by zero
-		remainingSize := ((2*4 + 8*f.dim) - (4 * f.K))
-		binary.Write(buf, binary.BigEndian, make([]int32, remainingSize/4))
+		// padding by zero (nothing to do)
 	} else {
-		// 4bytes children in K
-		children := make([]int32, 2)
+		offsetOfV := int(f.offsetOfV)
+		offsetOfChildren := int(f.offsetOfV - (4 * 2))
+		// 4bytes 2 children
 		for i, child := range node.children {
-			children[i] = int32(child)
+			binary.BigEndian.PutUint32(bytes[offsetOfChildren+i*4:offsetOfChildren+i*4+4], uint32(child))
 		}
-		binary.Write(buf, binary.BigEndian, children)
-
 		// 8bytes v in f
-		vec := make([]float64, f.dim)
 		for i, v := range node.v {
-			vec[i] = float64(v)
+			binary.BigEndian.PutUint64(bytes[offsetOfV+i*8:offsetOfV+i*8+8], math.Float64bits(v))
 		}
-		binary.Write(buf, binary.BigEndian, vec)
 	}
+	return bytes
 }
 
 type createArgs struct {
