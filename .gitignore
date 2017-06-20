@@ -5,3 +5,4 @@ gannoy
 gannoy-server
 gannoy-db
 gannoy-converter
+rpmbuild/RPMS/x86_64/gannoy-*

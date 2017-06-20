@@ -1,0 +1,9 @@
+version: '2'
+services:
+  gannoy-rpmbuild:
+    build:
+      context: .
+      dockerfile: Dockerfile.rpmbuild
+    command: cp /root/rpmbuild/RPMS/x86_64/gannoy-0.0.1-1.x86_64.rpm /tmp/rpmbuild/RPMS/x86_64/.
+    volumes:
+      - .:/tmp:rw
