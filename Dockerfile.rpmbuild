@@ -26,5 +26,4 @@ WORKDIR /root
 ADD rpmbuild/SPECS/gannoy.spec /root/rpmbuild/SPECS/gannoy.spec
 ADD rpmbuild/SOURCES/gannoy-*.toml /root/rpmbuild/SOURCES/
 RUN rpmbuild -bb /root/rpmbuild/SPECS/gannoy.spec
-RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-0.0.1-1.x86_64.rpm
-RUN ls -l /etc/gannoy
+# RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-0.0.1-1.x86_64.rpm

@@ -43,5 +43,5 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 /usr/local/bin/%{name}-converter
 /usr/local/bin/%{name}-server
 /usr/local/bin/%{name}-db
-/etc/%{name}/%{name}-server.toml
-/etc/%{name}/%{name}-db.toml
+%config(noreplace) /etc/%{name}/%{name}-server.toml
+%config(noreplace) /etc/%{name}/%{name}-db.toml
