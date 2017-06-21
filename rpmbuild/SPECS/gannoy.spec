@@ -12,6 +12,8 @@ Source0:   %{name}-%{version}
 Source1:   %{name}-converter-%{version}
 Source2:   %{name}-server-%{version}
 Source3:   %{name}-db-%{version}
+Source4:   %{name}-server.toml
+Source5:   %{name}-db.toml
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -27,6 +29,8 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/local/bin/%{name}-converter
 %{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/local/bin/%{name}-server
 %{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/local/bin/%{name}-db
+%{__install} -Dp -m0755 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
+%{__install} -Dp -m0755 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -39,3 +43,5 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 /usr/local/bin/%{name}-converter
 /usr/local/bin/%{name}-server
 /usr/local/bin/%{name}-db
+/etc/%{name}/%{name}-server.toml
+/etc/%{name}/%{name}-db.toml

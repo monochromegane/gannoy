@@ -13,6 +13,7 @@ RUN go get github.com/coreos/go-semver && \
     go get github.com/dgrijalva/jwt-go && \
     go get github.com/lestrrat/go-server-starter/listener && \
     go get golang.org/x/net/netutil && \
+    go get github.com/monochromegane/conflag && \
     go get github.com/gansidui/priority_queue
 RUN mkdir -p /root/go/src/github.com/monochromegane/gannoy
 ADD . /root/go/src/github.com/monochromegane/gannoy
@@ -23,4 +24,7 @@ RUN go build -o /root/rpmbuild/SOURCES/gannoy-0.0.1 cmd/gannoy/main.go && \
     go build -o /root/rpmbuild/SOURCES/gannoy-db-0.0.1 cmd/gannoy-db/main.go
 WORKDIR /root
 ADD rpmbuild/SPECS/gannoy.spec /root/rpmbuild/SPECS/gannoy.spec
+ADD rpmbuild/SOURCES/gannoy-*.toml /root/rpmbuild/SOURCES/
 RUN rpmbuild -bb /root/rpmbuild/SPECS/gannoy.spec
+RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-0.0.1-1.x86_64.rpm
+RUN ls -l /etc/gannoy
