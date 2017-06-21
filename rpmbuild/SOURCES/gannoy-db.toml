@@ -1,0 +1,6 @@
+data-dir = "/var/lib/gannoy"
+log-dir  = "/var/log/gannoy"
+lock-dir = "/var/run/gannoy"
+# server-starter = false
+# timeout = 10
+# max-connections = 100
