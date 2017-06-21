@@ -21,6 +21,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/gommon/log"
 	"github.com/lestrrat/go-server-starter/listener"
+	"github.com/monochromegane/conflag"
 	"github.com/monochromegane/gannoy"
 	"github.com/nightlyone/lockfile"
 )
@@ -32,6 +33,7 @@ type Options struct {
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
+	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 }
 
 var opts Options
@@ -41,7 +43,23 @@ type Feature struct {
 }
 
 func main() {
-	_, err := flags.Parse(&opts)
+
+	// Parse option from args and configuration file.
+	conflag.LongHyphen = true
+	conflag.BoolValue = false
+	parser := flags.NewParser(&opts, flags.Default)
+	_, err := parser.ParseArgs(os.Args[1:])
+	if err != nil {
+		os.Exit(1)
+	}
+	if opts.Config != "" {
+		if args, err := conflag.ArgsFrom(opts.Config); err == nil {
+			if _, err := parser.ParseArgs(args); err != nil {
+				os.Exit(1)
+			}
+		}
+	}
+	_, err = parser.ParseArgs(os.Args[1:])
 	if err != nil {
 		os.Exit(1)
 	}
