@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/lestrrat/go-server-starter/listener"
+	"github.com/monochromegane/conflag"
 )
 
 type Options struct {
@@ -23,12 +24,29 @@ type Options struct {
 	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
 	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
+	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 }
 
 var opts Options
 
 func main() {
-	_, err := flags.Parse(&opts)
+
+	// Parse option from args and configuration file.
+	conflag.LongHyphen = true
+	conflag.BoolValue = false
+	parser := flags.NewParser(&opts, flags.Default)
+	_, err := parser.ParseArgs(os.Args[1:])
+	if err != nil {
+		os.Exit(1)
+	}
+	if opts.Config != "" {
+		if args, err := conflag.ArgsFrom(opts.Config); err == nil {
+			if _, err := parser.ParseArgs(args); err != nil {
+				os.Exit(1)
+			}
+		}
+	}
+	_, err = parser.ParseArgs(os.Args[1:])
 	if err != nil {
 		os.Exit(1)
 	}
