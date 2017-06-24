@@ -14,6 +14,7 @@ Source2:   %{name}-server-%{version}
 Source3:   %{name}-db-%{version}
 Source4:   %{name}-server.toml
 Source5:   %{name}-db.toml
+Source6:   %{name}-db.service
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -25,12 +26,16 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %install
 %{__rm} -rf %{buildroot}
-%{__install} -Dp -m0755 %{SOURCE0} %{buildroot}/usr/local/bin/%{name}
-%{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/local/bin/%{name}-converter
-%{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/local/bin/%{name}-server
-%{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/local/bin/%{name}-db
+%{__mkdir} -p %{buildroot}/var/run/gannoy
+%{__mkdir} -p %{buildroot}/var/lib/gannoy
+%{__mkdir} -p %{buildroot}/var/log/gannoy
+%{__install} -Dp -m0755 %{SOURCE0} %{buildroot}/usr/bin/%{name}
+%{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/bin/%{name}-converter
+%{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/bin/%{name}-server
+%{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/bin/%{name}-db
 %{__install} -Dp -m0755 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
 %{__install} -Dp -m0755 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
+%{__install} -Dp -m0755 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -39,9 +44,13 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %files
 %defattr(-,root,root)
-/usr/local/bin/%{name}
-/usr/local/bin/%{name}-converter
-/usr/local/bin/%{name}-server
-/usr/local/bin/%{name}-db
+/usr/bin/%{name}
+/usr/bin/%{name}-converter
+/usr/bin/%{name}-server
+/usr/bin/%{name}-db
 %config(noreplace) /etc/%{name}/%{name}-server.toml
 %config(noreplace) /etc/%{name}/%{name}-db.toml
+%config(noreplace) /usr/lib/systemd/system/%{name}-db.service
+%dir /var/run/gannoy
+%dir /var/lib/gannoy
+%dir /var/log/gannoy
