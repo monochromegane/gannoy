@@ -111,6 +111,13 @@ func main() {
 		metaCh <- filepath.Join(opts.DataDir, file.Name())
 		metaCount++
 	}
+	if metaCount == 0 {
+		fmt.Fprintln(os.Stderr, "Do not exist Meta files.")
+		close(metaCh)
+		close(gannoyCh)
+		close(errCh)
+		os.Exit(1)
+	}
 
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		go gannoyIndexInitializer(metaCh, gannoyCh, errCh)
