@@ -18,6 +18,9 @@ Source6:   %{name}-db.service
 Source7:   %{name}-db.logrotate
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
+%{?systemd_requires}
+BuildRequires: systemd
+
 %description
 %{summary}
 
@@ -34,15 +37,23 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/bin/%{name}-converter
 %{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/bin/%{name}-server
 %{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/bin/%{name}-db
-%{__install} -Dp -m0755 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
-%{__install} -Dp -m0755 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
-%{__install} -Dp -m0755 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
-%{__install} -Dp -m0755 %{SOURCE7} %{buildroot}/etc/logrotate.d/%{name}-db
+%{__install} -Dp -m0644 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
+%{__install} -Dp -m0644 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
+%{__install} -Dp -m0644 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
+%{__install} -Dp -m0644 %{SOURCE7} %{buildroot}/etc/logrotate.d/%{name}-db
 
 %clean
 %{__rm} -rf %{buildroot}
 
 %post
+%systemd_post %{name}-db.service
+systemctl enable %{name}-db.service
+
+%preun
+%systemd_preun %{name}-db.service
+
+%postun
+%systemd_postun %{name}-db.service
 
 %files
 %defattr(-,root,root)
