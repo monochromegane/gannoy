@@ -22,7 +22,7 @@ import (
 type Options struct {
 	Db                string `long:"db" default:":1323" description:"Specify gannoy-db address."`
 	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
-	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
+	WithServerStarter bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 }

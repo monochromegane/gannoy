@@ -30,7 +30,7 @@ type Options struct {
 	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
 	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
 	LockDir           string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
-	WithServerStarter bool   `short:"s" long:"server-starter" default:"false" description:"Use server-starter listener for server address."`
+	WithServerStarter bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
