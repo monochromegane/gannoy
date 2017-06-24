@@ -1,0 +1,7 @@
+/var/log/gannoy/gannoy-db.log {
+  daily
+  rotate 7
+  missingok
+  notifempty
+  compress
+}

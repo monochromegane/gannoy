@@ -15,6 +15,7 @@ Source3:   %{name}-db-%{version}
 Source4:   %{name}-server.toml
 Source5:   %{name}-db.toml
 Source6:   %{name}-db.service
+Source7:   %{name}-db.logrotate
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %description
@@ -36,6 +37,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 %{__install} -Dp -m0755 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
 %{__install} -Dp -m0755 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
 %{__install} -Dp -m0755 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
+%{__install} -Dp -m0755 %{SOURCE7} %{buildroot}/etc/logrotate.d/%{name}-db
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -50,6 +52,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 /usr/bin/%{name}-db
 %config(noreplace) /etc/%{name}/%{name}-server.toml
 %config(noreplace) /etc/%{name}/%{name}-db.toml
+%config(noreplace) /etc/logrotate.d/%{name}-db
 %config(noreplace) /usr/lib/systemd/system/%{name}-db.service
 %dir /var/run/gannoy
 %dir /var/lib/gannoy
