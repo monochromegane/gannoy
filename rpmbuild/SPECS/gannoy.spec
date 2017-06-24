@@ -1,4 +1,10 @@
 %define _binaries_in_noarch_packages_terminate_build 0
+%define gannoy_user   gannoy
+%define gannoy_group  %{gannoy_user}
+%define gannoy_confdir %{_sysconfdir}/gannoy
+%define gannoy_home    %{_localstatedir}/lib/gannoy
+%define gannoy_logdir  %{_localstatedir}/log/gannoy
+%define gannoy_rundir  %{_localstatedir}/run/gannoy
 
 Summary: Approximate nearest neighbor search server and dynamic index written in Golang.
 Name:    gannoy
@@ -30,20 +36,23 @@ BuildRequires: systemd
 
 %install
 %{__rm} -rf %{buildroot}
-%{__mkdir} -p %{buildroot}/var/run/gannoy
-%{__mkdir} -p %{buildroot}/var/lib/gannoy
-%{__mkdir} -p %{buildroot}/var/log/gannoy
+%{__mkdir} -p %{buildroot}%{gannoy_rundir}
+%{__mkdir} -p %{buildroot}%{gannoy_home}
+%{__mkdir} -p %{buildroot}%{gannoy_logdir}
 %{__install} -Dp -m0755 %{SOURCE0} %{buildroot}/usr/bin/%{name}
 %{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/bin/%{name}-converter
 %{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/bin/%{name}-server
 %{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/bin/%{name}-db
-%{__install} -Dp -m0644 %{SOURCE4} %{buildroot}/etc/%{name}/%{name}-server.toml
-%{__install} -Dp -m0644 %{SOURCE5} %{buildroot}/etc/%{name}/%{name}-db.toml
+%{__install} -Dp -m0644 %{SOURCE4} %{buildroot}%{gannoy_confdir}/%{name}-server.toml
+%{__install} -Dp -m0644 %{SOURCE5} %{buildroot}%{gannoy_confdir}/%{name}-db.toml
 %{__install} -Dp -m0644 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
 %{__install} -Dp -m0644 %{SOURCE7} %{buildroot}/etc/logrotate.d/%{name}-db
 
 %clean
 %{__rm} -rf %{buildroot}
+
+%pre
+%{_sbindir}/useradd -c "Gannoy user" -s /bin/false -r -d %{gannoy_home} %{gannoy_user} 2>/dev/null || :
 
 %post
 %systemd_post %{name}-db.service
@@ -61,10 +70,10 @@ systemctl enable %{name}-db.service
 /usr/bin/%{name}-converter
 /usr/bin/%{name}-server
 /usr/bin/%{name}-db
-%config(noreplace) /etc/%{name}/%{name}-server.toml
-%config(noreplace) /etc/%{name}/%{name}-db.toml
+%config(noreplace) %{gannoy_confdir}/%{name}-server.toml
+%config(noreplace) %{gannoy_confdir}/%{name}-db.toml
 %config(noreplace) /etc/logrotate.d/%{name}-db
 %config(noreplace) /usr/lib/systemd/system/%{name}-db.service
-%dir /var/run/gannoy
-%dir /var/lib/gannoy
-%dir /var/log/gannoy
+%attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_rundir}
+%attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_home}
+%attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_logdir}

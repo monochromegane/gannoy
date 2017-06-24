@@ -5,6 +5,8 @@ ConditionPathExists=/usr/bin/gannoy-db
 After=network.target
 
 [Service]
+User=gannoy
+Group=gannoy
 Type=simple
 PIDFile=/var/run/gannoy/server_starter.pid
 ExecStart=/usr/bin/start_server --port 8080 --pid-file /var/run/gannoy/server_starter.pid -- /usr/bin/gannoy-db -c /etc/gannoy/gannoy-db.toml
