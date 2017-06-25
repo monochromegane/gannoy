@@ -10,11 +10,12 @@ import (
 )
 
 type Options struct {
-	Dim  int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
-	Tree int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
-	K    int    `short:"K" long:"K" default:"-1" default-mask:"twice the value of dim" description:"Specify max node size in a bucket node."`
-	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
-	Maps string `short:"m" long:"map-path" default:"" description:"Specify key and index mapping CSV file, if exist."`
+	Dim     int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
+	Tree    int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
+	K       int    `short:"K" long:"K" default:"-1" default-mask:"twice the value of dim" description:"Specify max node size in a bucket node."`
+	Path    string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
+	Maps    string `short:"m" long:"map-path" default:"" description:"Specify key and index mapping CSV file, if exist."`
+	Version bool   `short:"v" long:"version" description:"Show version"`
 }
 
 var opts Options
@@ -25,6 +26,10 @@ func main() {
 	args, err := parser.Parse()
 	if err != nil {
 		os.Exit(1)
+	}
+	if opts.Version {
+		fmt.Printf("%s version %s\n", parser.Name, gannoy.VERSION)
+		os.Exit(0)
 	}
 	if len(args) != 2 {
 		fmt.Fprintf(os.Stderr, "source annoy file and destination database name not specified.\n")

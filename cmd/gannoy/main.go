@@ -8,6 +8,10 @@ import (
 	"github.com/monochromegane/gannoy"
 )
 
+type Options struct {
+	Version bool `short:"v" long:"version" description:"Show version"`
+}
+
 type CreateCommand struct {
 	Dim  int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
 	Tree int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
@@ -15,6 +19,7 @@ type CreateCommand struct {
 	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
 }
 
+var opts Options
 var createCommand CreateCommand
 
 func (c *CreateCommand) Execute(args []string) error {
@@ -39,7 +44,7 @@ func (c *CreateCommand) Usage() string {
 }
 
 func main() {
-	parser := flags.NewParser(nil, flags.Default)
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash) // exclude PrintError
 	parser.Name = "gannoy"
 
 	parser.AddCommand("create",
@@ -48,6 +53,11 @@ func main() {
 		&createCommand)
 	_, err := parser.Parse()
 	if err != nil {
+		if opts.Version && err.(*flags.Error).Type == flags.ErrCommandRequired {
+			fmt.Printf("%s version %s\n", parser.Name, gannoy.VERSION)
+			os.Exit(0)
+		}
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

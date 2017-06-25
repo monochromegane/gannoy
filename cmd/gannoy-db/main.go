@@ -35,6 +35,7 @@ type Options struct {
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
+	Version           bool   `short:"v" long:"version" description:"Show version"`
 }
 
 var opts Options
@@ -52,6 +53,10 @@ func main() {
 	_, err := parser.ParseArgs(os.Args[1:])
 	if err != nil {
 		os.Exit(1)
+	}
+	if opts.Version {
+		fmt.Printf("%s version %s\n", parser.Name, gannoy.VERSION)
+		os.Exit(0)
 	}
 	if opts.Config != "" {
 		if args, err := conflag.ArgsFrom(opts.Config); err == nil {
