@@ -2,11 +2,9 @@
 *.map
 *.meta
 gannoy
-gannoy-server
 gannoy-db
 gannoy-converter
 !cmd/gannoy/
-!cmd/gannoy-server/
 !cmd/gannoy-db/
 !cmd/gannoy-converter/
 rpmbuild/RPMS/x86_64/gannoy-*

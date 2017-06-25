@@ -1,4 +1,0 @@
-log-dir  = "/var/log/gannoy"
-# db     = ":1323"
-# server-starter = false
-# timeout = 10

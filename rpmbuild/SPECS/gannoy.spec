@@ -16,12 +16,10 @@ URL:     https://github.com/monochromegane/gannoy
 
 Source0:   %{name}-%{version}
 Source1:   %{name}-converter-%{version}
-Source2:   %{name}-server-%{version}
-Source3:   %{name}-db-%{version}
-Source4:   %{name}-server.toml
-Source5:   %{name}-db.toml
-Source6:   %{name}-db.service
-Source7:   %{name}-db.logrotate
+Source2:   %{name}-db-%{version}
+Source3:   %{name}-db.toml
+Source4:   %{name}-db.service
+Source5:   %{name}-db.logrotate
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %{?systemd_requires}
@@ -41,12 +39,10 @@ BuildRequires: systemd
 %{__mkdir} -p %{buildroot}%{gannoy_logdir}
 %{__install} -Dp -m0755 %{SOURCE0} %{buildroot}/usr/bin/%{name}
 %{__install} -Dp -m0755 %{SOURCE1} %{buildroot}/usr/bin/%{name}-converter
-%{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/bin/%{name}-server
-%{__install} -Dp -m0755 %{SOURCE3} %{buildroot}/usr/bin/%{name}-db
-%{__install} -Dp -m0644 %{SOURCE4} %{buildroot}%{gannoy_confdir}/%{name}-server.toml
-%{__install} -Dp -m0644 %{SOURCE5} %{buildroot}%{gannoy_confdir}/%{name}-db.toml
-%{__install} -Dp -m0644 %{SOURCE6} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
-%{__install} -Dp -m0644 %{SOURCE7} %{buildroot}/etc/logrotate.d/%{name}-db
+%{__install} -Dp -m0755 %{SOURCE2} %{buildroot}/usr/bin/%{name}-db
+%{__install} -Dp -m0644 %{SOURCE3} %{buildroot}%{gannoy_confdir}/%{name}-db.toml
+%{__install} -Dp -m0644 %{SOURCE4} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
+%{__install} -Dp -m0644 %{SOURCE5} %{buildroot}/etc/logrotate.d/%{name}-db
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -68,9 +64,7 @@ systemctl enable %{name}-db.service
 %defattr(-,root,root)
 /usr/bin/%{name}
 /usr/bin/%{name}-converter
-/usr/bin/%{name}-server
 /usr/bin/%{name}-db
-%config(noreplace) %{gannoy_confdir}/%{name}-server.toml
 %config(noreplace) %{gannoy_confdir}/%{name}-db.toml
 %config(noreplace) /etc/logrotate.d/%{name}-db
 %config(noreplace) /usr/lib/systemd/system/%{name}-db.service

@@ -20,7 +20,6 @@ ADD . /root/go/src/github.com/monochromegane/gannoy
 WORKDIR /root/go/src/github.com/monochromegane/gannoy
 RUN go build -o /root/rpmbuild/SOURCES/gannoy-0.0.1 cmd/gannoy/main.go && \
     go build -o /root/rpmbuild/SOURCES/gannoy-converter-0.0.1 cmd/gannoy-converter/main.go && \
-    go build -o /root/rpmbuild/SOURCES/gannoy-server-0.0.1 cmd/gannoy-server/main.go && \
     go build -o /root/rpmbuild/SOURCES/gannoy-db-0.0.1 cmd/gannoy-db/main.go
 WORKDIR /root
 ADD rpmbuild/SPECS/gannoy.spec /root/rpmbuild/SPECS/gannoy.spec
