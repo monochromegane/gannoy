@@ -6,14 +6,14 @@ import (
 )
 
 type Maps struct {
-	mu sync.Mutex
+	mu *sync.RWMutex
 
 	keyToId map[int]int
 }
 
 func newMaps() Maps {
 	return Maps{
-		mu:      sync.Mutex{},
+		mu:      &sync.RWMutex{},
 		keyToId: map[int]int{},
 	}
 }
@@ -32,9 +32,9 @@ func (m *Maps) remove(key int) {
 	delete(m.keyToId, key)
 }
 
-func (m *Maps) getId(key int) (int, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m Maps) getId(key int) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	if id, ok := m.keyToId[key]; !ok {
 		return -1, fmt.Errorf("not found")
