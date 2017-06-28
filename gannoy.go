@@ -161,6 +161,9 @@ func (g *GannoyIndex) addItem(key int, w []float64) error {
 	if len(w) != g.dim {
 		return fmt.Errorf("Dimension mismatch. expect %d, but %d.\n", g.dim, len(w))
 	}
+	if g.nodes.maps.isExist(key) {
+		return fmt.Errorf("Key [%d] is already exist.\n", key)
+	}
 	n := g.nodes.newNode()
 	n.key = key
 	n.v = w
