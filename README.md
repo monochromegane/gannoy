@@ -71,7 +71,7 @@ Register features using a specified key.
 | -------- | ---------------------------------- |
 | database | Create item in this database name. |
 
-#### form parameters
+#### JSON parameters
 
 | key      | value                       |
 | -------- | --------------------------- |
@@ -82,7 +82,7 @@ Register features using a specified key.
 
 #### Response
 
-* Response 200 (application/json)
+* Response 200 (no content)
   * return no content.
 * Response 422 (no content)
   * return no content if you specify not found database or unprocessable parameter.
@@ -100,7 +100,7 @@ Register or update features using a specified key.
 
 **Note**: `KEY` must be integer.
 
-#### form parameters
+#### JSON parameters
 
 | key      | value                   |
 | -------- | ----------------------- |
@@ -108,7 +108,7 @@ Register or update features using a specified key.
 
 #### Response
 
-* Response 200 (application/json)
+* Response 200 (no content)
   * return no content.
 * Response 422 (no content)
   * return no content if you specify not found database or unprocessable parameter.
@@ -126,7 +126,7 @@ Register or update features using a specified key.
 
 #### Response
 
-* Response 200 (application/json)
+* Response 200 (no content)
   * return no content.
 * Response 422 (no content)
   * return no content if you specify not found database or unprocessable parameter.
