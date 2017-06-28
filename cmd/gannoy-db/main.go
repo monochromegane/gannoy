@@ -44,6 +44,11 @@ type Feature struct {
 	W []float64 `json:"features"`
 }
 
+type FeatureWithKey struct {
+	Key int       `json:"key"`
+	W   []float64 `json:"features"`
+}
+
 func main() {
 
 	// Parse option from args and configuration file.
@@ -170,6 +175,24 @@ loop:
 		}
 
 		return c.JSON(http.StatusOK, r)
+	})
+
+	e.POST("/databases/:database/features", func(c echo.Context) error {
+		database := c.Param("database")
+		if _, ok := databases[database]; !ok {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		feature := new(FeatureWithKey)
+		if err := c.Bind(feature); err != nil {
+			return err
+		}
+
+		gannoy := databases[database]
+		err = gannoy.AddItem(feature.Key, feature.W)
+		if err != nil {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		return c.NoContent(http.StatusOK)
 	})
 
 	e.PUT("/databases/:database/features/:key", func(c echo.Context) error {
