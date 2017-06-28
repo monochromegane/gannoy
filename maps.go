@@ -42,3 +42,8 @@ func (m Maps) getId(key int) (int, error) {
 		return id, nil
 	}
 }
+
+func (m Maps) isExist(key int) bool {
+	_, err := m.getId(key)
+	return err == nil
+}

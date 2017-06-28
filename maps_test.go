@@ -34,3 +34,16 @@ func TestMapsGetId(t *testing.T) {
 		t.Errorf("Maps getId when not found should return error.")
 	}
 }
+
+func TestMapsIsExist(t *testing.T) {
+	maps := newMaps()
+	if maps.isExist(10) {
+		t.Errorf("Maps isExist when not exist should return false.")
+	}
+
+	maps.add(1, 10)
+
+	if !maps.isExist(10) {
+		t.Errorf("Maps isExist when exist should return true.")
+	}
+}
