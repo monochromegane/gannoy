@@ -1,4 +1,4 @@
-# gannoy [![Build Status](https://travis-ci.org/monochromegane/gannoy.svg?branch=master)](https://travis-ci.org/monochromegane/gannoy)
+# Gannoy [![Build Status](https://travis-ci.org/monochromegane/gannoy.svg?branch=master)](https://travis-ci.org/monochromegane/gannoy)
 
 Approximate nearest neighbor search server and dynamic index written in Golang.
 Gannoy is inspired by [spotify/annoy](https://github.com/spotify/annoy) and provides a dynamic database and API server.
