@@ -12,13 +12,20 @@ $ gannoy create -d 100 DATABASE_NAME
 $ gannoy-db
 ```
 
-You can put the features using gannoy-db API.
+Regiter features using gannoy API.
 
 ```sh
 $ curl 'http://localhost:1323/databases/DATABASE_NAME/features/KEY' \
        -H "Content-type: application/json" \
        -X PUT \
        -d '{"features": [1.0, 0.5, 0.2, ...]}'
+```
+
+Search similar items.
+
+```sh
+$ curl 'http://localhost:1323/search?database=DATABASE_NAME&key=KEY'
+[10, 23, 2, 20, 300, 45, 11, 8, 39, 88]
 ```
 
 See also `gannoy create --help` or `gannoy-db --help`.
