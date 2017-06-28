@@ -443,12 +443,13 @@ func (g *GannoyIndex) builder() {
 		case DELETE:
 			args.result <- g.removeItem(args.key)
 		case UPDATE:
-			err := g.removeItem(args.key)
-			if err != nil {
-				args.result <- err
-			} else {
-				args.result <- g.addItem(args.key, args.w)
+			if g.nodes.maps.isExist(args.key) {
+				err := g.removeItem(args.key)
+				if err != nil {
+					args.result <- err
+				}
 			}
+			args.result <- g.addItem(args.key, args.w)
 		}
 	}
 }
