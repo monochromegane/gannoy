@@ -22,7 +22,7 @@ var opts Options
 
 func main() {
 	parser := flags.NewParser(&opts, flags.Default)
-	parser.Usage = "[OPTIONS] SRC_ANNOY_FILE DEST_DATABASE_NAME"
+	parser.Usage = "[OPTIONS] SRC_ANNOY_OR_CSV_FILE DEST_DATABASE_NAME"
 	args, err := parser.Parse()
 	if err != nil {
 		os.Exit(1)
@@ -32,7 +32,7 @@ func main() {
 		os.Exit(0)
 	}
 	if len(args) != 2 {
-		fmt.Fprintf(os.Stderr, "source annoy file and destination database name not specified.\n")
+		fmt.Fprintf(os.Stderr, "source annoy or CSV file and destination database name not specified.\n")
 		os.Exit(1)
 	}
 	if opts.K < 3 || opts.K > opts.Dim*2 {
@@ -44,7 +44,7 @@ func main() {
 		K = opts.Dim * 2
 	}
 
-	converter := gannoy.NewConverter(opts.Dim, opts.Tree, K, binary.LittleEndian)
+	converter := gannoy.NewConverter(args[0], opts.Dim, opts.Tree, K, binary.LittleEndian)
 	err = converter.Convert(args[0], opts.Path, args[1], opts.Maps)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
