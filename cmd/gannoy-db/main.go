@@ -235,6 +235,10 @@ loop:
 		return c.NoContent(http.StatusOK)
 	})
 
+	e.GET("/health", func(c echo.Context) error {
+		return c.NoContent(http.StatusOK)
+	})
+
 	// Start server
 	sig := os.Interrupt
 	if opts.WithServerStarter {
