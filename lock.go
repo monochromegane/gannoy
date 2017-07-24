@@ -20,14 +20,18 @@ func newLocker() Locker {
 	if err != nil {
 		return Flock{}
 	}
-	kernel := strings.Split(strings.TrimRight(string(bytes), "\n"), " ")
-	if len(kernel) != 2 {
-		return Flock{}
-	}
-	if kernel[0] == "Linux" && !semver.New(kernel[1]).LessThan(*semver.New("3.15.0")) {
+	if validateKernel(bytes) {
 		return Fcntl{}
 	}
 	return Flock{}
+}
+
+func validateKernel(bytes []byte) bool {
+	kernel := strings.Split(strings.TrimRight(string(bytes), "\n"), " ")
+	if kernel[0] == "Linux" && !semver.New(kernel[1]).LessThan(*semver.New("3.15.0")) {
+		return true
+	}
+	return false
 }
 
 // Only Linux and kernel version 3.15 or later.
