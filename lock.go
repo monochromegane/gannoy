@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/coreos/go-semver/semver"
+	"regexp"
 )
 
 type Locker interface {
@@ -28,10 +29,16 @@ func newLocker() Locker {
 
 func validateKernel(bytes []byte) bool {
 	kernel := strings.Split(strings.TrimRight(string(bytes), "\n"), " ")
-	if kernel[0] == "Linux" && !semver.New(kernel[1]).LessThan(*semver.New("3.15.0")) {
+	nk := normalizeKernelVersion(kernel[1])
+	if kernel[0] == "Linux" && !semver.New(nk).LessThan(*semver.New("3.15.0")) {
 		return true
 	}
 	return false
+}
+
+func normalizeKernelVersion(v string) string {
+	re := regexp.MustCompile(".elrepo.x86_64|.el7.x86_64")
+	return re.ReplaceAllString(v, "")
 }
 
 // Only Linux and kernel version 3.15 or later.
