@@ -87,10 +87,10 @@ func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) ([]int, error) {
 	if err != nil || !m.isLeaf() {
 		return []int{}, fmt.Errorf("Not found")
 	}
-	return g.getAllNns(m.v, n, searchK)
+	return g.GetAllNns(m.v, n, searchK)
 }
 
-func (g *GannoyIndex) getAllNns(v []float64, n, searchK int) ([]int, error) {
+func (g *GannoyIndex) GetAllNns(v []float64, n, searchK int) ([]int, error) {
 	if searchK == -1 {
 		searchK = n * g.tree
 	}
@@ -196,6 +196,31 @@ func (g *GannoyIndex) addItem(key int, w []float64) error {
 	close(buildChan)
 	g.nodes.maps.add(n.id, key)
 
+	return nil
+}
+
+// Bulk insert. Currently, This method dosen't support mutex.
+// So, this method must be called only from converter.
+func (g *GannoyIndex) AddItems(keys []int, ws [][]float64) error {
+	indices := make([]int, len(keys))
+	for i, key := range keys {
+		n := g.nodes.newNode()
+		n.key = key
+		n.v = ws[i]
+		n.parents = make([]int, g.tree)
+		err := n.save()
+		if err != nil {
+			return err
+		}
+		indices[i] = n.id
+	}
+	for index, _ := range g.meta.roots() {
+		m := g.makeTree(index, -1, indices)
+		err := g.meta.updateRoot(index, m)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -451,6 +476,16 @@ func (g *GannoyIndex) builder() {
 			}
 			args.result <- g.addItem(args.key, args.w)
 		}
+	}
+}
+
+func (g GannoyIndex) PrintTree() {
+	for index, root := range g.meta.roots() {
+		node, err := g.nodes.getNode(root)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
+		g.printTree(index, node, node.id, 0)
 	}
 }
 

@@ -69,6 +69,8 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 	stat, _ := ann.Stat()
 	count := int(stat.Size() / c.nodeSize())
 
+	keys := make([]int, count)
+	vecs := make([][]float64, count)
 	for i := 0; i < count; i++ {
 		b := make([]byte, c.nodeSize())
 		_, err = syscall.Pread(int(ann.Fd()), b, c.offset(i))
@@ -97,13 +99,10 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 				return fmt.Errorf("Index is not found in mapping file.\n")
 			}
 		}
-		err = gannoy.AddItem(key, vec)
-		if err != nil {
-			return err
-		}
+		keys[i] = key
+		vecs[i] = vec
 	}
-
-	return nil
+	return gannoy.AddItems(keys, vecs)
 }
 
 func (c converter) offset(index int) int64 {
@@ -172,6 +171,8 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 	}
 	reader := csv.NewReader(file)
 
+	keys := []int{}
+	vecs := [][]float64{}
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -194,12 +195,8 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 				vec[i] = feature
 			}
 		}
-
-		err = gannoy.AddItem(key, vec)
-		if err != nil {
-			return err
-		}
+		keys = append(keys, key)
+		vecs = append(vecs, vec)
 	}
-
-	return nil
+	return gannoy.AddItems(keys, vecs)
 }
