@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/gansidui/priority_queue"
+	ngt "github.com/monochromegane/go-ngt"
 )
 
 type GannoyIndex struct {
@@ -20,6 +21,7 @@ type GannoyIndex struct {
 	K         int
 	numWorker int
 	buildChan chan buildArgs
+	index     ngt.NGTIndex
 }
 
 func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIndex, error) {
@@ -33,6 +35,7 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 	K := meta.K
 
 	ann := meta.treePath()
+	index, err := ngt.OpenIndex("sample")
 
 	gannoy := GannoyIndex{
 		meta:      meta,
@@ -44,6 +47,7 @@ func NewGannoyIndex(metaFile string, distance Distance, random Random) (GannoyIn
 		nodes:     newNodes(ann, tree, dim, K),
 		numWorker: numWorker(tree),
 		buildChan: make(chan buildArgs, 1),
+		index:     index,
 	}
 	go gannoy.builder()
 	return gannoy, nil
@@ -83,6 +87,16 @@ func (g *GannoyIndex) UpdateItem(key int, w []float64) error {
 }
 
 func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) ([]int, error) {
+	o, _ := g.index.GetObjectSpace()
+	obj, _ := o.GetObjectAsFloat(key)
+	v := make([]float64, len(obj))
+	for i, o := range obj {
+		v[i] = float64(o)
+	}
+	return g.GetAllNns(v, n, searchK)
+}
+
+func (g *GannoyIndex) GetNnsByKeyOrg(key, n, searchK int) ([]int, error) {
 	m, err := g.nodes.getNodeByKey(key)
 	if err != nil || !m.isLeaf() {
 		return []int{}, fmt.Errorf("Not found")
@@ -91,6 +105,15 @@ func (g *GannoyIndex) GetNnsByKey(key, n, searchK int) ([]int, error) {
 }
 
 func (g *GannoyIndex) GetAllNns(v []float64, n, searchK int) ([]int, error) {
+	results, err := g.index.Search(v, n, 0.1)
+	ids := make([]int, len(results))
+	for i, result := range results {
+		ids[i] = int(result.Id)
+	}
+	return ids, err
+}
+
+func (g *GannoyIndex) GetAllNnsOrg(v []float64, n, searchK int) ([]int, error) {
 	if searchK == -1 {
 		searchK = n * g.tree
 	}
