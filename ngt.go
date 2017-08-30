@@ -13,6 +13,25 @@ type NGTIndex struct {
 	pair      Pair
 }
 
+func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
+	index, err := ngt.CreateGraphAndTree(database, property)
+	if err != nil {
+		return NGTIndex{}, err
+	}
+	pair, err := newPair(database + ".map")
+	if err != nil {
+		return NGTIndex{}, err
+	}
+	idx := NGTIndex{
+		database:  database,
+		index:     index,
+		buildChan: make(chan buildArgs, 1),
+		pair:      pair,
+	}
+	go idx.builder()
+	return idx, nil
+}
+
 func NewNGTIndex(database string) (NGTIndex, error) {
 	index, err := ngt.OpenIndex(database)
 	if err != nil {
