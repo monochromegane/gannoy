@@ -63,8 +63,10 @@ func newPair(file string) (Pair, error) {
 		if err != nil {
 			return Pair{}, err
 		}
-		keyToId.Store(key, id)
-		idToKey.Store(id, key)
+		uintKey := uint(key)
+		uintId := uint(id)
+		keyToId.Store(uintKey, uintId)
+		idToKey.Store(uintId, uintKey)
 	}
 
 	return Pair{

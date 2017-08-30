@@ -51,7 +51,7 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 	return idx, nil
 }
 
-func (idx NGTIndex) GetNnsById(id uint, n int, epsilon float32) ([]int, error) {
+func (idx *NGTIndex) GetNnsById(id uint, n int, epsilon float32) ([]int, error) {
 	v, err := idx.getItem(id)
 	if err != nil {
 		return []int{}, err
@@ -59,7 +59,7 @@ func (idx NGTIndex) GetNnsById(id uint, n int, epsilon float32) ([]int, error) {
 	return idx.GetAllNns(v, n, epsilon)
 }
 
-func (idx NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
+func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
 	results, err := idx.index.Search(v, n, epsilon)
 	ids := make([]int, len(results))
 	for i, result := range results {
@@ -75,7 +75,7 @@ type buildArgs struct {
 	result chan error
 }
 
-func (idx NGTIndex) builder() {
+func (idx *NGTIndex) builder() {
 	for args := range idx.buildChan {
 		switch args.action {
 		case ADD:
@@ -91,23 +91,23 @@ func (idx NGTIndex) builder() {
 	}
 }
 
-func (idx NGTIndex) AddItem(key int, w []float64) error {
+func (idx *NGTIndex) AddItem(key int, w []float64) error {
 	args := buildArgs{action: ADD, key: key, w: w, result: make(chan error)}
 	idx.buildChan <- args
 	return <-args.result
 }
 
-func (idx NGTIndex) RemoveItem(key int) error {
+func (idx *NGTIndex) RemoveItem(key int) error {
 	args := buildArgs{action: DELETE, key: key, result: make(chan error)}
 	idx.buildChan <- args
 	return <-args.result
 }
 
-func (idx NGTIndex) AsyncSave() {
+func (idx *NGTIndex) AsyncSave() {
 	idx.buildChan <- buildArgs{action: ASYNC_SAVE}
 }
 
-func (idx NGTIndex) Save() error {
+func (idx *NGTIndex) Save() error {
 	args := buildArgs{action: SAVE, result: make(chan error)}
 	idx.buildChan <- args
 	return <-args.result
@@ -126,24 +126,24 @@ func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 	if err != nil {
 		return 0, err
 	}
-	idx.pair.addPair(key, newId)
+	idx.pair.addPair(uint(key), newId)
 	return newId, idx.index.CreateIndex(24)
 }
 
 func (idx *NGTIndex) removeItem(key int) error {
-	if id, ok := idx.pair.idFromKey(key); ok {
+	if id, ok := idx.pair.idFromKey(uint(key)); ok {
 		err := idx.index.RemoveIndex(id.(uint))
 		if err != nil {
 			return err
 		}
-		idx.pair.removeByKey(key)
+		idx.pair.removeByKey(uint(key))
 		return nil
 	} else {
 		return fmt.Errorf("Not Found")
 	}
 }
 
-func (idx NGTIndex) getItem(id uint) ([]float64, error) {
+func (idx *NGTIndex) getItem(id uint) ([]float64, error) {
 	o, err := idx.index.GetObjectSpace()
 	if err != nil {
 		return []float64{}, err
@@ -160,7 +160,7 @@ func (idx NGTIndex) getItem(id uint) ([]float64, error) {
 	return v, nil
 }
 
-func (idx NGTIndex) existItem(id uint) bool {
+func (idx *NGTIndex) existItem(id uint) bool {
 	obj, err := idx.getItem(id)
 	if err != nil || len(obj) == 0 {
 		return false
