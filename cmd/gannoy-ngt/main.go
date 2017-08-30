@@ -154,9 +154,13 @@ func main() {
 		return c.JSON(http.StatusOK, r)
 	})
 
-	e.POST("/databases/:database/features", func(c echo.Context) error {
+	e.PUT("/databases/:database/features/:key", func(c echo.Context) error {
 		database := c.Param("database")
 		if _, ok := databases[database]; !ok {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		key, err := strconv.Atoi(c.Param("key"))
+		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 		feature := new(Feature)
@@ -165,7 +169,7 @@ func main() {
 		}
 
 		gannoy := databases[database]
-		err = gannoy.AddItem(1, feature.W)
+		err = gannoy.AddItem(key, feature.W)
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}

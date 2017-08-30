@@ -4,12 +4,15 @@ import (
 	"fmt"
 
 	ngt "github.com/monochromegane/go-ngt"
+	"golang.org/x/sync/syncmap"
 )
 
 type NGTIndex struct {
 	database  string
 	index     ngt.NGTIndex
 	buildChan chan buildArgs
+	keyToId   syncmap.Map
+	idToKey   syncmap.Map
 }
 
 func NewNGTIndex(database string) (NGTIndex, error) {
@@ -21,6 +24,8 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 		database:  database,
 		index:     index,
 		buildChan: make(chan buildArgs, 1),
+		keyToId:   syncmap.Map{},
+		idToKey:   syncmap.Map{},
 	}
 	go idx.builder()
 	return idx, nil
@@ -47,10 +52,10 @@ func (idx NGTIndex) builder() {
 	for args := range idx.buildChan {
 		switch args.action {
 		case ADD:
-			_, err := idx.addItem(args.w)
+			_, err := idx.addItem(args.key, args.w)
 			args.result <- err
 		case DELETE:
-			args.result <- idx.removeItem(uint(args.key))
+			args.result <- idx.removeItem(args.key)
 		}
 	}
 }
@@ -67,12 +72,13 @@ func (idx NGTIndex) RemoveItem(key int) error {
 	return <-args.result
 }
 
-func (idx NGTIndex) addItem(v []float64) (uint, error) {
+func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 	newId, err := idx.index.InsertIndex(v)
-	fmt.Printf("newId: %d\n", newId)
 	if err != nil {
 		return 0, err
 	}
+	idx.keyToId.Store(key, newId)
+	idx.idToKey.Store(newId, key)
 
 	err = idx.index.CreateIndex(24)
 	if err != nil {
@@ -81,15 +87,18 @@ func (idx NGTIndex) addItem(v []float64) (uint, error) {
 	return newId, idx.index.SaveIndex(idx.database)
 }
 
-func (idx NGTIndex) removeItem(id uint) error {
-	if !idx.existItem(id) {
+func (idx *NGTIndex) removeItem(key int) error {
+	if id, ok := idx.keyToId.Load(key); ok {
+		err := idx.index.RemoveIndex(id.(uint))
+		if err != nil {
+			return err
+		}
+		idx.keyToId.Delete(key)
+		idx.idToKey.Delete(id)
+		return idx.index.SaveIndex(idx.database)
+	} else {
 		return fmt.Errorf("Not Found")
 	}
-	err := idx.index.RemoveIndex(id)
-	if err != nil {
-		return err
-	}
-	return idx.index.SaveIndex(idx.database)
 }
 
 func (idx NGTIndex) getItem(id uint) ([]float64, error) {
