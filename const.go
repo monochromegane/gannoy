@@ -7,8 +7,3 @@ const (
 	SAVE
 	ASYNC_SAVE
 )
-
-const (
-	ASC int = iota
-	DESC
-)

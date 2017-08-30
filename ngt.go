@@ -49,6 +49,13 @@ func (idx NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error
 	return ids, err
 }
 
+type buildArgs struct {
+	action int
+	key    int
+	w      []float64
+	result chan error
+}
+
 func (idx NGTIndex) builder() {
 	for args := range idx.buildChan {
 		switch args.action {
