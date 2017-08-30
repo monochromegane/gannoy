@@ -4,15 +4,13 @@ import (
 	"fmt"
 
 	ngt "github.com/monochromegane/go-ngt"
-	"golang.org/x/sync/syncmap"
 )
 
 type NGTIndex struct {
 	database  string
 	index     ngt.NGTIndex
 	buildChan chan buildArgs
-	keyToId   syncmap.Map
-	idToKey   syncmap.Map
+	pair      Pair
 }
 
 func NewNGTIndex(database string) (NGTIndex, error) {
@@ -20,12 +18,15 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 	if err != nil {
 		return NGTIndex{}, err
 	}
+	pair, err := newPair(database + ".map")
+	if err != nil {
+		return NGTIndex{}, err
+	}
 	idx := NGTIndex{
 		database:  database,
 		index:     index,
 		buildChan: make(chan buildArgs, 1),
-		keyToId:   syncmap.Map{},
-		idToKey:   syncmap.Map{},
+		pair:      pair,
 	}
 	go idx.builder()
 	return idx, nil
@@ -77,24 +78,24 @@ func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 	if err != nil {
 		return 0, err
 	}
-	idx.keyToId.Store(key, newId)
-	idx.idToKey.Store(newId, key)
+	idx.pair.addPair(key, newId)
 
 	err = idx.index.CreateIndex(24)
 	if err != nil {
 		return 0, err
 	}
+	idx.pair.save()
 	return newId, idx.index.SaveIndex(idx.database)
 }
 
 func (idx *NGTIndex) removeItem(key int) error {
-	if id, ok := idx.keyToId.Load(key); ok {
+	if id, ok := idx.pair.idFromKey(key); ok {
 		err := idx.index.RemoveIndex(id.(uint))
 		if err != nil {
 			return err
 		}
-		idx.keyToId.Delete(key)
-		idx.idToKey.Delete(id)
+		idx.pair.removeByKey(key)
+		idx.pair.save()
 		return idx.index.SaveIndex(idx.database)
 	} else {
 		return fmt.Errorf("Not Found")
