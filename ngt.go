@@ -7,8 +7,9 @@ import (
 )
 
 type NGTIndex struct {
-	database string
-	index    ngt.NGTIndex
+	database  string
+	index     ngt.NGTIndex
+	buildChan chan buildArgs
 }
 
 func NewNGTIndex(database string) (NGTIndex, error) {
@@ -16,7 +17,13 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 	if err != nil {
 		return NGTIndex{}, err
 	}
-	return NGTIndex{database: database, index: index}, nil
+	idx := NGTIndex{
+		database:  database,
+		index:     index,
+		buildChan: make(chan buildArgs, 1),
+	}
+	go idx.builder()
+	return idx, nil
 }
 
 func (idx NGTIndex) GetNnsById(id uint, n int, epsilon float32) ([]int, error) {
@@ -36,16 +43,32 @@ func (idx NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error
 	return ids, err
 }
 
-func (idx NGTIndex) UpdateItem(id uint, v []float64) (uint, error) {
-	err := idx.RemoveItem(id)
-	if err != nil {
-		return 0, err
+func (idx NGTIndex) builder() {
+	for args := range idx.buildChan {
+		switch args.action {
+		case ADD:
+			_, err := idx.addItem(args.w)
+			args.result <- err
+		case DELETE:
+			args.result <- idx.removeItem(uint(args.key))
+		}
 	}
-	return idx.AddItem(v)
 }
 
-func (idx NGTIndex) AddItem(v []float64) (uint, error) {
-	newId, err := idx.addItem(v)
+func (idx NGTIndex) AddItem(key int, w []float64) error {
+	args := buildArgs{action: ADD, key: key, w: w, result: make(chan error)}
+	idx.buildChan <- args
+	return <-args.result
+}
+
+func (idx NGTIndex) RemoveItem(key int) error {
+	args := buildArgs{action: DELETE, key: key, result: make(chan error)}
+	idx.buildChan <- args
+	return <-args.result
+}
+
+func (idx NGTIndex) addItem(v []float64) (uint, error) {
+	newId, err := idx.index.InsertIndex(v)
 	fmt.Printf("newId: %d\n", newId)
 	if err != nil {
 		return 0, err
@@ -58,23 +81,15 @@ func (idx NGTIndex) AddItem(v []float64) (uint, error) {
 	return newId, idx.index.SaveIndex(idx.database)
 }
 
-func (idx NGTIndex) RemoveItem(id uint) error {
+func (idx NGTIndex) removeItem(id uint) error {
 	if !idx.existItem(id) {
 		return fmt.Errorf("Not Found")
 	}
-	err := idx.removeItem(id)
+	err := idx.index.RemoveIndex(id)
 	if err != nil {
 		return err
 	}
 	return idx.index.SaveIndex(idx.database)
-}
-
-func (idx NGTIndex) addItem(v []float64) (uint, error) {
-	return idx.index.InsertIndex(v)
-}
-
-func (idx NGTIndex) removeItem(id uint) error {
-	return idx.index.RemoveIndex(id)
 }
 
 func (idx NGTIndex) getItem(id uint) ([]float64, error) {
