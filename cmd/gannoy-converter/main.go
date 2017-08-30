@@ -11,7 +11,6 @@ import (
 
 type Options struct {
 	Dim     int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
-	Tree    int    `short:"t" long:"tree" default:"1" description:"Specify size of index tree."`
 	Path    string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
 	Maps    string `short:"m" long:"map-path" default:"" description:"Specify key and index mapping CSV file, if exist."`
 	Version bool   `short:"v" long:"version" description:"Show version"`
@@ -35,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	converter := gannoy.NewConverter(args[0], opts.Dim, opts.Tree, 0, binary.LittleEndian)
+	converter := gannoy.NewConverter(args[0], opts.Dim, binary.LittleEndian)
 	err = converter.Convert(args[0], opts.Path, args[1], opts.Maps)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
