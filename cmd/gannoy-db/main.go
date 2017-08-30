@@ -102,32 +102,16 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
 	databases := map[string]gannoy.NGTIndex{}
-	dbFiles := []string{"grp", "obj", "prf", "tre"}
 	for _, dir := range dirs {
-		if !dir.IsDir() {
-			continue
-		}
-		key := dir.Name()
-		files, err := ioutil.ReadDir(key)
-		if err != nil {
-			continue
-		}
-		if len(files) != 4 {
-			continue
-		}
-		for _, file := range files {
-			if !contain(dbFiles, file.Name()) {
+		if isDatabaseDir(dir) {
+			key := dir.Name()
+			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key))
+			if err != nil {
 				continue
 			}
+			databases[key] = index
 		}
-		index, err := gannoy.NewNGTIndex(key)
-		if err != nil {
-			continue
-		}
-		fmt.Printf("%s\n", key)
-		databases[key] = index
 	}
 
 	// Define API
@@ -249,6 +233,26 @@ func main() {
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Fatal(err)
 	}
+}
+
+func isDatabaseDir(dir os.FileInfo) bool {
+	dbFiles := []string{"grp", "obj", "prf", "tre"}
+	if !dir.IsDir() {
+		return false
+	}
+	files, err := ioutil.ReadDir(filepath.Join(opts.DataDir, dir.Name()))
+	if err != nil {
+		return false
+	}
+	if len(files) != 4 {
+		return false
+	}
+	for _, file := range files {
+		if !contain(dbFiles, file.Name()) {
+			return false
+		}
+	}
+	return true
 }
 
 func contain(files []string, file string) bool {
