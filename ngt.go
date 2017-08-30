@@ -51,12 +51,26 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 	return idx, nil
 }
 
-func (idx *NGTIndex) GetNnsById(id uint, n int, epsilon float32) ([]int, error) {
-	v, err := idx.getItem(id)
-	if err != nil {
-		return []int{}, err
+func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error) {
+	if id, ok := idx.pair.idFromKey(key); !ok {
+		return nil, fmt.Errorf("Not found")
+	} else {
+		v, err := idx.getItem(id.(uint))
+		if err != nil {
+			return nil, err
+		}
+		ids, err := idx.GetAllNns(v, n, epsilon)
+		if err != nil {
+			return nil, err
+		}
+		keys := make([]int, len(ids))
+		for i, id_ := range ids {
+			if key, ok := idx.pair.keyFromId(uint(id_)); ok {
+				keys[i] = int(key.(uint))
+			}
+		}
+		return keys, nil
 	}
-	return idx.GetAllNns(v, n, epsilon)
 }
 
 func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
