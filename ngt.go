@@ -57,6 +57,10 @@ func (idx NGTIndex) builder() {
 			args.result <- err
 		case DELETE:
 			args.result <- idx.removeItem(args.key)
+		case SAVE:
+			args.result <- idx.save()
+		case ASYNC_SAVE:
+			idx.save()
 		}
 	}
 }
@@ -73,19 +77,31 @@ func (idx NGTIndex) RemoveItem(key int) error {
 	return <-args.result
 }
 
+func (idx NGTIndex) AsyncSave() {
+	idx.buildChan <- buildArgs{action: ASYNC_SAVE}
+}
+
+func (idx NGTIndex) Save() error {
+	args := buildArgs{action: SAVE, result: make(chan error)}
+	idx.buildChan <- args
+	return <-args.result
+}
+
+func (idx *NGTIndex) save() error {
+	err := idx.pair.save()
+	if err != nil {
+		return err
+	}
+	return idx.index.SaveIndex(idx.database)
+}
+
 func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 	newId, err := idx.index.InsertIndex(v)
 	if err != nil {
 		return 0, err
 	}
 	idx.pair.addPair(key, newId)
-
-	err = idx.index.CreateIndex(24)
-	if err != nil {
-		return 0, err
-	}
-	idx.pair.save()
-	return newId, idx.index.SaveIndex(idx.database)
+	return newId, idx.index.CreateIndex(24)
 }
 
 func (idx *NGTIndex) removeItem(key int) error {
@@ -95,8 +111,7 @@ func (idx *NGTIndex) removeItem(key int) error {
 			return err
 		}
 		idx.pair.removeByKey(key)
-		idx.pair.save()
-		return idx.index.SaveIndex(idx.database)
+		return nil
 	} else {
 		return fmt.Errorf("Not Found")
 	}

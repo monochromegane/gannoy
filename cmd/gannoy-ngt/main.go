@@ -198,6 +198,23 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
+	e.PUT("/savepoint/:database", func(c echo.Context) error {
+		database := c.Param("database")
+		if _, ok := databases[database]; !ok {
+			return c.NoContent(http.StatusUnprocessableEntity)
+		}
+		gannoy := databases[database]
+		gannoy.AsyncSave()
+		return c.NoContent(http.StatusAccepted)
+	})
+
+	e.PUT("/savepoints", func(c echo.Context) error {
+		for _, gannoy := range databases {
+			gannoy.AsyncSave()
+		}
+		return c.NoContent(http.StatusAccepted)
+	})
+
 	// Start server
 	sig := os.Interrupt
 	if opts.WithServerStarter {
