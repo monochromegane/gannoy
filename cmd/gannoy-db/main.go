@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,6 +33,7 @@ type Options struct {
 	WithServerStarter bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
+	AutoSave          bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 	Version           bool   `short:"v" long:"version" description:"Show version"`
 }
@@ -108,8 +110,10 @@ func main() {
 			key := dir.Name()
 			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key))
 			if err != nil {
+				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue
 			}
+			e.Logger.Infof("Database (%s) was successfully loaded", key)
 			databases[key] = index
 		}
 	}
@@ -199,6 +203,16 @@ func main() {
 		return c.NoContent(http.StatusAccepted)
 	})
 
+	e.GET("/databases", func(c echo.Context) error {
+		json := make([]string, len(databases))
+		i := 0
+		for key, _ := range databases {
+			json[i] = key
+			i += 1
+		}
+		return c.JSON(http.StatusOK, json)
+	})
+
 	// Start server
 	sig := os.Interrupt
 	if opts.WithServerStarter {
@@ -220,7 +234,7 @@ func main() {
 
 	go func() {
 		if err := e.Start(""); err != nil {
-			e.Logger.Info("shutting down the server")
+			e.Logger.Info("Shutting down the server")
 		}
 	}()
 
@@ -233,6 +247,27 @@ func main() {
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Fatal(err)
 	}
+
+	if opts.AutoSave {
+		save(databases, e.Logger)
+	}
+}
+
+func save(databases map[string]gannoy.NGTIndex, logger echo.Logger) {
+	var wg sync.WaitGroup
+	wg.Add(len(databases))
+	for _, db := range databases {
+		go func(database gannoy.NGTIndex, wg *sync.WaitGroup) {
+			defer wg.Done()
+			err := database.Save()
+			if err != nil {
+				logger.Errorf("Database (%s) save failed. %s", database, err)
+			} else {
+				logger.Infof("Database (%s) was successfully saved", database)
+			}
+		}(db, &wg)
+	}
+	wg.Wait()
 }
 
 func isDatabaseDir(dir os.FileInfo) bool {

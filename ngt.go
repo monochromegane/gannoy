@@ -2,6 +2,7 @@ package gannoy
 
 import (
 	"fmt"
+	"path/filepath"
 
 	ngt "github.com/monochromegane/go-ngt"
 )
@@ -49,6 +50,10 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 	}
 	go idx.builder()
 	return idx, nil
+}
+
+func (idx NGTIndex) String() string {
+	return filepath.Base(idx.database)
 }
 
 func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error) {
