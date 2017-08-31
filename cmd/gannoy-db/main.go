@@ -186,7 +186,7 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
-	e.PUT("/savepoint/:database", func(c echo.Context) error {
+	e.PUT("/savepoints/:database", func(c echo.Context) error {
 		database := c.Param("database")
 		if _, ok := databases[database]; !ok {
 			return c.NoContent(http.StatusUnprocessableEntity)
