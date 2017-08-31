@@ -96,3 +96,9 @@ func (p *Pair) save() error {
 	writer.Flush()
 	return nil
 }
+
+func (p *Pair) drop() error {
+	p.keyToId = syncmap.Map{}
+	p.idToKey = syncmap.Map{}
+	return os.Remove(p.file)
+}

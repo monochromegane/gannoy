@@ -2,6 +2,7 @@ package gannoy
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	ngt "github.com/monochromegane/go-ngt"
@@ -189,4 +190,13 @@ func (idx *NGTIndex) existItem(id uint) bool {
 
 func (idx *NGTIndex) Close() {
 	idx.index.Close()
+}
+
+func (idx *NGTIndex) Drop() error {
+	idx.Close()
+	err := idx.pair.drop()
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(idx.database)
 }

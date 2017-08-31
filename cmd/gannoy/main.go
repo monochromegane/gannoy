@@ -10,6 +10,10 @@ import (
 	ngt "github.com/monochromegane/go-ngt"
 )
 
+var opts Options
+var createCommand CreateCommand
+var dropCommand DropCommand
+
 type Options struct {
 	Version bool `short:"v" long:"version" description:"Show version"`
 }
@@ -20,9 +24,6 @@ type CreateCommand struct {
 	Object   string `short:"o" long:"object-type" description:"Specify object type. [f: 4 bytes float(default), c: 1 byte integer]"`
 	Path     string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
 }
-
-var opts Options
-var createCommand CreateCommand
 
 func (c *CreateCommand) Execute(args []string) error {
 	if len(args) != 1 {
@@ -78,6 +79,44 @@ func (c *CreateCommand) Usage() string {
 	return "[create-OPTIONS] DATABASE"
 }
 
+type DropCommand struct {
+	Yes  bool   `short:"y" long:"assumeyes" description:"Answer yes for all questions."`
+	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
+}
+
+func (c *DropCommand) Execute(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("Database name not specified.")
+	}
+
+	database := filepath.Join(c.Path, args[0])
+	if _, err := os.Stat(database); err != nil {
+		return fmt.Errorf("Database (%s) dose not exist.", database)
+	}
+
+	index, err := gannoy.NewNGTIndex(database)
+	if err != nil {
+		return err
+	}
+
+	if c.Yes {
+		return index.Drop()
+	} else {
+		var confirm string
+		fmt.Printf("Do you want to drop the database? (%s) [y|n]\n", database)
+		fmt.Scan(&confirm)
+		if confirm == "y" || confirm == "yes" {
+			return index.Drop()
+		}
+		index.Close()
+		return nil
+	}
+}
+
+func (c *DropCommand) Usage() string {
+	return "[drop-OPTIONS] DATABASE"
+}
+
 func main() {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash) // exclude PrintError
 	parser.Name = "gannoy"
@@ -86,6 +125,10 @@ func main() {
 		"Create database",
 		"The create command creates a meta file for the database.",
 		&createCommand)
+	parser.AddCommand("drop",
+		"Drop database",
+		"The drop command drops the database.",
+		&dropCommand)
 	_, err := parser.Parse()
 	if err != nil {
 		if opts.Version && err.(*flags.Error).Type == flags.ErrCommandRequired {
