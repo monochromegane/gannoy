@@ -248,8 +248,14 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
+	// Save databases
 	if opts.AutoSave {
 		save(databases, e.Logger)
+	}
+
+	// Close databases
+	for _, db := range databases {
+		db.Close()
 	}
 }
 

@@ -186,3 +186,7 @@ func (idx *NGTIndex) existItem(id uint) bool {
 	}
 	return true
 }
+
+func (idx *NGTIndex) Close() {
+	idx.index.Close()
+}
