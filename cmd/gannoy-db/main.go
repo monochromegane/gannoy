@@ -157,7 +157,7 @@ func main() {
 		}
 
 		gannoy := databases[database]
-		err = gannoy.AddItem(key, feature.W)
+		err = gannoy.UpdateItem(key, feature.W)
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}

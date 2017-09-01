@@ -103,6 +103,15 @@ func (idx *NGTIndex) builder() {
 			args.result <- err
 		case DELETE:
 			args.result <- idx.removeItem(args.key)
+		case UPDATE:
+			if _, ok := idx.pair.idFromKey(args.key); ok {
+				err := idx.removeItem(args.key)
+				if err != nil {
+					args.result <- err
+				}
+			}
+			_, err := idx.addItem(args.key, args.w)
+			args.result <- err
 		case SAVE:
 			args.result <- idx.save()
 		case ASYNC_SAVE:
@@ -119,6 +128,12 @@ func (idx *NGTIndex) AddItem(key int, w []float64) error {
 
 func (idx *NGTIndex) RemoveItem(key int) error {
 	args := buildArgs{action: DELETE, key: key, result: make(chan error)}
+	idx.buildChan <- args
+	return <-args.result
+}
+
+func (idx *NGTIndex) UpdateItem(key int, w []float64) error {
+	args := buildArgs{action: UPDATE, key: key, result: make(chan error)}
 	idx.buildChan <- args
 	return <-args.result
 }
