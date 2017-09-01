@@ -1,28 +1,42 @@
 FROM centos:7
 MAINTAINER dev.kuro.obi@gmail.com
 
-RUN yum -y install wget git rpmdevtools yum-utils
+ENV VERSION 0.0.1
+ENV GO_VERSION 1.9
+ENV NGT_VERSION 1.2.0
+
+RUN yum -y install wget git rpmdevtools yum-utils cmake
+RUN yum -y groupinstall "Development tools"
 RUN rpmdev-setuptree
-RUN wget https://storage.googleapis.com/golang/go1.8.3.linux-amd64.tar.gz
-RUN tar -C /usr/local -xzf go1.8.3.linux-amd64.tar.gz
+
+WORKDIR /root
+RUN wget -q https://github.com/yahoojapan/NGT/archive/v${NGT_VERSION}.zip
+RUN unzip v${NGT_VERSION}.zip
+RUN mkdir NGT-${NGT_VERSION}/build
+WORKDIR /root/NGT-${NGT_VERSION}/build
+RUN cmake .. && make && make install
+
+WORKDIR /root
+RUN wget -q https://storage.googleapis.com/golang/go${GO_VERSION}.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
 ENV PATH $PATH:/usr/local/go/bin
-RUN go get github.com/coreos/go-semver && \
-    go get github.com/nightlyone/lockfile && \
+RUN go get github.com/nightlyone/lockfile && \
     go get github.com/labstack/echo && \
     go get github.com/jessevdk/go-flags && \
     go get github.com/dgrijalva/jwt-go && \
     go get github.com/lestrrat/go-server-starter/listener && \
     go get golang.org/x/net/netutil && \
+    go get golang.org/x/sync/syncmap && \
     go get github.com/monochromegane/conflag && \
-    go get github.com/gansidui/priority_queue
+    go get github.com/monochromegane/go-ngt
 RUN mkdir -p /root/go/src/github.com/monochromegane/gannoy
 ADD . /root/go/src/github.com/monochromegane/gannoy
 WORKDIR /root/go/src/github.com/monochromegane/gannoy
-RUN go build -o /root/rpmbuild/SOURCES/gannoy-0.0.1 cmd/gannoy/main.go && \
-    go build -o /root/rpmbuild/SOURCES/gannoy-converter-0.0.1 cmd/gannoy-converter/main.go && \
-    go build -o /root/rpmbuild/SOURCES/gannoy-db-0.0.1 cmd/gannoy-db/main.go
+RUN go build -o /root/rpmbuild/SOURCES/gannoy-${VERSION} cmd/gannoy/main.go && \
+    go build -o /root/rpmbuild/SOURCES/gannoy-converter-${VERSION} cmd/gannoy-converter/main.go && \
+    go build -o /root/rpmbuild/SOURCES/gannoy-db-${VERSION} cmd/gannoy-db/main.go
 WORKDIR /root
 ADD rpmbuild/SPECS/gannoy.spec /root/rpmbuild/SPECS/gannoy.spec
 ADD rpmbuild/SOURCES/gannoy-* /root/rpmbuild/SOURCES/
 RUN rpmbuild -bb /root/rpmbuild/SPECS/gannoy.spec
-# RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-0.0.1-1.x86_64.rpm
+# RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-${VERSION}-2.x86_64.rpm
