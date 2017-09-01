@@ -11,8 +11,8 @@ import (
 )
 
 type Pair struct {
-	keyToId syncmap.Map
-	idToKey syncmap.Map
+	keyToId *syncmap.Map
+	idToKey *syncmap.Map
 	file    string
 }
 
@@ -43,10 +43,19 @@ func newPair(file string) (Pair, error) {
 	if err != nil {
 		return Pair{}, err
 	}
-	keyToId := syncmap.Map{}
-	idToKey := syncmap.Map{}
+	pair, err := newPairFromReader(f)
+	if err != nil {
+		return pair, err
+	}
+	pair.file = file
+	return pair, nil
+}
 
-	reader := csv.NewReader(f)
+func newPairFromReader(r io.Reader) (Pair, error) {
+	keyToId := &syncmap.Map{}
+	idToKey := &syncmap.Map{}
+
+	reader := csv.NewReader(r)
 	reader.Comma = ','
 	for {
 		record, err := reader.Read()
@@ -72,7 +81,6 @@ func newPair(file string) (Pair, error) {
 	return Pair{
 		keyToId: keyToId,
 		idToKey: idToKey,
-		file:    file,
 	}, nil
 }
 
@@ -98,7 +106,7 @@ func (p *Pair) save() error {
 }
 
 func (p *Pair) drop() error {
-	p.keyToId = syncmap.Map{}
-	p.idToKey = syncmap.Map{}
+	p.keyToId = &syncmap.Map{}
+	p.idToKey = &syncmap.Map{}
 	return os.Remove(p.file)
 }

@@ -165,6 +165,15 @@ func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 	return newId, idx.index.CreateIndex(24)
 }
 
+func (idx *NGTIndex) addItemWithoutCreateIndex(key int, v []float64) (uint, error) {
+	newId, err := idx.index.InsertIndex(v)
+	if err != nil {
+		return 0, err
+	}
+	idx.pair.addPair(uint(key), newId)
+	return newId, nil
+}
+
 func (idx *NGTIndex) removeItem(key int) error {
 	if id, ok := idx.pair.idFromKey(uint(key)); ok {
 		err := idx.index.RemoveIndex(id.(uint))

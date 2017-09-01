@@ -14,15 +14,17 @@ import (
 	ngt "github.com/monochromegane/go-ngt"
 )
 
-func NewConverter(from string, dim int, order binary.ByteOrder) Converter {
+func NewConverter(from string, dim, thread int, order binary.ByteOrder) Converter {
 	if filepath.Ext(from) == ".csv" {
 		return csvConverter{
-			dim: dim,
+			dim:    dim,
+			thread: thread,
 		}
 	} else {
 		return converter{
-			dim:   dim,
-			order: order,
+			dim:    dim,
+			thread: thread,
+			order:  order,
 		}
 	}
 }
@@ -32,8 +34,9 @@ type Converter interface {
 }
 
 type converter struct {
-	dim   int
-	order binary.ByteOrder
+	dim    int
+	thread int
+	order  binary.ByteOrder
 }
 
 func (c converter) Convert(from, path, to, mapPath string) error {
@@ -89,10 +92,14 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 			}
 		}
 
-		err = index.AddItem(key, vec)
+		_, err = index.addItemWithoutCreateIndex(key, vec)
 		if err != nil {
 			return err
 		}
+	}
+	err = index.index.CreateIndex(c.thread)
+	if err != nil {
+		return err
 	}
 	return index.Save()
 }
@@ -139,7 +146,8 @@ func (c converter) initializeMaps(path string) (map[int]int, error) {
 }
 
 type csvConverter struct {
-	dim int
+	dim    int
+	thread int
 }
 
 func (c csvConverter) Convert(from, path, to, mapPath string) error {
@@ -178,10 +186,14 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 				vec[i] = feature
 			}
 		}
-		err = index.AddItem(key, vec)
+		_, err = index.addItemWithoutCreateIndex(key, vec)
 		if err != nil {
 			return err
 		}
+	}
+	err = index.index.CreateIndex(c.thread)
+	if err != nil {
+		return err
 	}
 	return index.Save()
 }
