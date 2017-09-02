@@ -4,4 +4,7 @@
   missingok
   notifempty
   compress
+  postrotate
+    kill -HUP `cat /var/run/gannoy/server_starter.pid`
+  endscript
 }
