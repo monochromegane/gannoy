@@ -2,7 +2,10 @@ package gannoy
 
 import (
 	"io/ioutil"
+	"math/rand"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 
 	ngt "github.com/monochromegane/go-ngt"
@@ -102,6 +105,63 @@ func TestUpdateItemWhenExist(t *testing.T) {
 	}
 	if keys[0] != key {
 		t.Errorf("NGTIndex.AddItem should register object, but dose not register.")
+	}
+}
+
+func TestUpdateItemConcurrently(t *testing.T) {
+	objectNum := 3
+	dim := 2048
+	index := testCreateGraphAndTree("db", dim)
+	// defer index.Drop()
+
+	// Insert 1,000 objects
+	for i := 0; i < objectNum; i++ {
+		vec := make([]float64, dim)
+		for j := 0; j < dim; j++ {
+			vec[j] = rand.Float64()
+		}
+		_, err := index.addItemWithoutCreateIndex(i, vec)
+		if err != nil {
+			t.Errorf("NGTIndex.UpdateItem should not return error, but return %v", err)
+		}
+	}
+	err := index.index.CreateIndex(runtime.NumCPU())
+	if err != nil {
+		t.Errorf("NGTIndex.CreateItem should not return error, but return %v", err)
+	}
+	index.Save()
+	file := index.database
+	index, _ = NewNGTIndex(file, runtime.NumCPU()) // Avoid warining GraphAndTreeIndex::insert empty
+	defer index.Drop()
+
+	// UpdateItem concurrently
+	vec := make([]float64, dim)
+	for j := 0; j < dim; j++ {
+		vec[j] = rand.Float64()
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(objectNum)
+	worker := func(inputChan chan int) {
+		for key := range inputChan {
+			index.UpdateItem(key, vec)
+			wg.Done()
+		}
+	}
+	inputChan := make(chan int, objectNum)
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go worker(inputChan)
+	}
+
+	for i := 0; i < objectNum; i++ {
+		inputChan <- i
+	}
+	wg.Wait()
+
+	key := 0
+	keys, err := index.GetNnsByKey(uint(key), objectNum+10, 0.1)
+	if len(keys) > objectNum {
+		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
 	}
 }
 
