@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -34,6 +35,7 @@ type Options struct {
 	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
 	AutoSave          bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
+	Thread            int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 	Version           bool   `short:"v" long:"version" description:"Show version"`
 }
@@ -104,11 +106,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	thread := opts.Thread
+	if thread == 0 {
+		thread = runtime.NumCPU()
+	}
 	databases := map[string]gannoy.NGTIndex{}
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
 			key := dir.Name()
-			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key))
+			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key), thread)
 			if err != nil {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue

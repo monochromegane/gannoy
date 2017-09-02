@@ -13,6 +13,7 @@ type NGTIndex struct {
 	index     ngt.NGTIndex
 	buildChan chan buildArgs
 	pair      Pair
+	thread    int
 }
 
 func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
@@ -34,7 +35,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	return idx, nil
 }
 
-func NewNGTIndex(database string) (NGTIndex, error) {
+func NewNGTIndex(database string, thread int) (NGTIndex, error) {
 	index, err := ngt.OpenIndex(database)
 	if err != nil {
 		return NGTIndex{}, err
@@ -48,6 +49,7 @@ func NewNGTIndex(database string) (NGTIndex, error) {
 		index:     index,
 		buildChan: make(chan buildArgs, 1),
 		pair:      pair,
+		thread:    thread,
 	}
 	go idx.builder()
 	return idx, nil
@@ -162,7 +164,7 @@ func (idx *NGTIndex) addItem(key int, v []float64) (uint, error) {
 		return 0, err
 	}
 	idx.pair.addPair(uint(key), newId)
-	return newId, idx.index.CreateIndex(24)
+	return newId, idx.index.CreateIndex(idx.thread)
 }
 
 func (idx *NGTIndex) addItemWithoutCreateIndex(key int, v []float64) (uint, error) {
