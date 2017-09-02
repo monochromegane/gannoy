@@ -106,7 +106,7 @@ func (idx *NGTIndex) builder() {
 		case DELETE:
 			args.result <- idx.removeItem(args.key)
 		case UPDATE:
-			if _, ok := idx.pair.idFromKey(args.key); ok {
+			if _, ok := idx.pair.idFromKey(uint(args.key)); ok {
 				err := idx.removeItem(args.key)
 				if err != nil {
 					args.result <- err
@@ -135,7 +135,7 @@ func (idx *NGTIndex) RemoveItem(key int) error {
 }
 
 func (idx *NGTIndex) UpdateItem(key int, w []float64) error {
-	args := buildArgs{action: UPDATE, key: key, result: make(chan error)}
+	args := buildArgs{action: UPDATE, key: key, w: w, result: make(chan error)}
 	idx.buildChan <- args
 	return <-args.result
 }
