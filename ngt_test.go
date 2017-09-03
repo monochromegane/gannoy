@@ -108,6 +108,62 @@ func TestUpdateItemWhenExist(t *testing.T) {
 	}
 }
 
+func TestUpdateItemWithSearch(t *testing.T) {
+	objectNum := 100
+	dim := 2048
+	index := testCreateGraphAndTree("db", dim)
+
+	// Insert objects
+	vecs := testRandomVectors(objectNum, dim)
+	for i := 0; i < objectNum; i++ {
+		_, err := index.addItemWithoutCreateIndex(i, vecs[i])
+		if err != nil {
+			t.Errorf("NGTIndex.UpdateItem should not return error, but return %v", err)
+		}
+	}
+	err := index.index.CreateIndex(runtime.NumCPU())
+	if err != nil {
+		t.Errorf("NGTIndex.CreateItem should not return error, but return %v", err)
+	}
+	index.Save()
+	file := index.database
+	index, _ = NewNGTIndex(file, runtime.NumCPU()) // Avoid warining GraphAndTreeIndex::insert empty
+	// defer index.Drop()
+
+	go func() {
+		for {
+			index.GetNnsByKey(uint(rand.Intn(objectNum)), objectNum, 0.1)
+		}
+	}()
+
+	// UpdateItem concurrently
+	vecs = testRandomVectors(objectNum, dim)
+	var wg sync.WaitGroup
+	wg.Add(objectNum)
+	worker := func(inputChan chan int) {
+		for key := range inputChan {
+			index.UpdateItem(key, vecs[key])
+			wg.Done()
+		}
+	}
+	inputChan := make(chan int, objectNum)
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go worker(inputChan)
+	}
+
+	for i := 0; i < objectNum; i++ {
+		inputChan <- i
+	}
+	wg.Wait()
+	close(inputChan)
+
+	key := 0
+	keys, err := index.GetNnsByKey(uint(key), objectNum+10, 0.1)
+	if len(keys) != objectNum {
+		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
+	}
+}
+
 func TestUpdateItemAndRemoveItemConcurrently(t *testing.T) {
 	objectNum := 50
 	dim := 2048
