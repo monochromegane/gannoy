@@ -28,16 +28,17 @@ import (
 )
 
 type Options struct {
-	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
-	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
-	LockDir           string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
-	WithServerStarter bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
-	ShutDownTimeout   int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
-	MaxConnections    int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
-	AutoSave          bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
-	Thread            int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
-	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
-	Version           bool   `short:"v" long:"version" description:"Show version"`
+	DataDir              string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
+	LogDir               string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
+	LockDir              string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
+	WithServerStarter    bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
+	ShutDownTimeout      int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
+	MaxConnections       int    `short:"m" long:"max-connections" default:"100" description:"Specify the number of max connections."`
+	AutoSave             bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
+	ConcurrentToAutoSave int    `short:"C" long:"concurrent-to-auto-save" default:"5" description:"Concurrent number to auto save."`
+	Thread               int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
+	Config               string `short:"c" long:"config" default:"" description:"Configuration file path."`
+	Version              bool   `short:"v" long:"version" description:"Show version"`
 }
 
 var opts Options
@@ -268,18 +269,31 @@ func main() {
 func save(databases map[string]gannoy.NGTIndex, logger echo.Logger) {
 	var wg sync.WaitGroup
 	wg.Add(len(databases))
-	for _, db := range databases {
-		go func(database gannoy.NGTIndex, wg *sync.WaitGroup) {
-			defer wg.Done()
-			err := database.Save()
-			if err != nil {
-				logger.Errorf("Database (%s) save failed. %s", database, err)
-			} else {
-				logger.Infof("Database (%s) was successfully saved", database)
-			}
-		}(db, &wg)
+
+	saveChan := make(chan string, len(databases))
+	worker := func() {
+		for key := range saveChan {
+			func(wg *sync.WaitGroup) {
+				defer wg.Done()
+				if database, ok := databases[key]; ok {
+					err := database.Save()
+					if err != nil {
+						logger.Errorf("Database (%s) save failed. %s", database, err)
+					} else {
+						logger.Infof("Database (%s) was successfully saved", database)
+					}
+				}
+			}(&wg)
+		}
+	}
+	for i := 0; i < opts.ConcurrentToAutoSave; i++ {
+		go worker()
+	}
+	for key, _ := range databases {
+		saveChan <- key
 	}
 	wg.Wait()
+	close(saveChan)
 }
 
 func isDatabaseDir(dir os.FileInfo) bool {
