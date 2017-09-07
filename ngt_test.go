@@ -43,7 +43,7 @@ func TestAddItemAndRemoveItem(t *testing.T) {
 		t.Errorf("NGTIndex.AddItem should not return error, but return %v", err)
 	}
 
-	keys, err := index.GetNnsByKey(uint(key), 1, 0.1)
+	keys, err := index.SearchItem(uint(key), 1, 0.1)
 	if keys[0] != key {
 		t.Errorf("NGTIndex.AddItem should register object, but dose not register.")
 	}
@@ -53,7 +53,7 @@ func TestAddItemAndRemoveItem(t *testing.T) {
 		t.Errorf("NGTIndex.RemoveItem should not return error, but return %v", err)
 	}
 
-	keys, err = index.GetNnsByKey(uint(key), 1, 0.1)
+	keys, err = index.SearchItem(uint(key), 1, 0.1)
 	if err == nil {
 		t.Errorf("NGTIndex.RemoveItem should delete object, but dose not delete.")
 	}
@@ -69,7 +69,7 @@ func TestUpdateItemWhenNotExist(t *testing.T) {
 		t.Errorf("NGTIndex.UpdateItem should not return error, but return %v", err)
 	}
 
-	keys, err := index.GetNnsByKey(uint(key), 1, 0.1)
+	keys, err := index.SearchItem(uint(key), 1, 0.1)
 	if keys[0] != key {
 		t.Errorf("NGTIndex.AddItem should register object, but dose not register.")
 	}
@@ -85,7 +85,7 @@ func TestUpdateItemWhenExist(t *testing.T) {
 		t.Errorf("NGTIndex.UpdateItem should not return error, but return %v", err)
 	}
 
-	keys, err := index.GetNnsByKey(uint(key), 1, 0.1)
+	keys, err := index.SearchItem(uint(key), 1, 0.1)
 	if keys[0] != key {
 		t.Errorf("NGTIndex.AddItem should register object, but dose not register.")
 	}
@@ -99,7 +99,7 @@ func TestUpdateItemWhenExist(t *testing.T) {
 		t.Errorf("NGTIndex.UpdateItem should not return error, but return %v", err)
 	}
 
-	keys, err = index.GetNnsByKey(uint(key), 10, 0.1)
+	keys, err = index.SearchItem(uint(key), 10, 0.1)
 	if len(keys) > 3 {
 		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
 	}
@@ -132,7 +132,7 @@ func TestUpdateItemWithSearch(t *testing.T) {
 
 	go func() {
 		for {
-			index.GetNnsByKey(uint(rand.Intn(objectNum)), objectNum, 0.1)
+			index.SearchItem(uint(rand.Intn(objectNum)), objectNum, 0.1)
 		}
 	}()
 
@@ -158,7 +158,7 @@ func TestUpdateItemWithSearch(t *testing.T) {
 	close(inputChan)
 
 	key := 0
-	keys, err := index.GetNnsByKey(uint(key), objectNum+10, 0.1)
+	keys, err := index.SearchItem(uint(key), objectNum+10, 0.1)
 	if len(keys) != objectNum {
 		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
 	}
@@ -208,7 +208,7 @@ func TestUpdateItemAndRemoveItemConcurrently(t *testing.T) {
 	close(inputChan)
 
 	key := 0
-	keys, err := index.GetNnsByKey(uint(key), objectNum+10, 0.1)
+	keys, err := index.SearchItem(uint(key), objectNum+10, 0.1)
 	if len(keys) != objectNum {
 		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
 	}
@@ -232,7 +232,7 @@ func TestUpdateItemAndRemoveItemConcurrently(t *testing.T) {
 	}
 	wg2.Wait()
 	close(inputChan2)
-	keys, err = index.GetNnsByKey(uint(key), objectNum*2+1, 0.1)
+	keys, err = index.SearchItem(uint(key), objectNum*2+1, 0.1)
 	if len(keys) != objectNum*2 {
 		t.Errorf("NGTIndex.AddItem should insert object, but updated new one.")
 	}
@@ -256,11 +256,10 @@ func TestUpdateItemAndRemoveItemConcurrently(t *testing.T) {
 	wg3.Wait()
 	close(inputChan3)
 
-	keys, err = index.GetNnsByKey(uint(key+objectNum), objectNum+1, 0.1)
+	keys, err = index.SearchItem(uint(key+objectNum), objectNum+1, 0.1)
 	if len(keys) != objectNum {
 		t.Errorf("NGTIndex.AddItem should update object, but inserted new one.")
 	}
-
 }
 
 func testRandomVectors(objectNum, dim int) [][]float64 {

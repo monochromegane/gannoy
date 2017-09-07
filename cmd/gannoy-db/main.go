@@ -141,7 +141,7 @@ func main() {
 		}
 
 		gannoy := databases[database]
-		r, err := gannoy.GetNnsByKey(uint(key), limit, 0.1)
+		r, err := gannoy.SearchItem(uint(key), limit, 0.1)
 		if err != nil || len(r) == 0 {
 			return c.NoContent(http.StatusNotFound)
 		}

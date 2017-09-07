@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	ngt "github.com/monochromegane/go-ngt"
 )
@@ -12,6 +13,7 @@ type NGTIndex struct {
 	database  string
 	index     ngt.NGTIndex
 	buildChan chan buildArgs
+	mu        *sync.RWMutex
 	pair      Pair
 	thread    int
 }
@@ -29,6 +31,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 		database:  database,
 		index:     index,
 		buildChan: make(chan buildArgs, 1),
+		mu:        &sync.RWMutex{},
 		pair:      pair,
 	}
 	go idx.builder()
@@ -48,6 +51,7 @@ func NewNGTIndex(database string, thread int) (NGTIndex, error) {
 		database:  database,
 		index:     index,
 		buildChan: make(chan buildArgs, 1),
+		mu:        &sync.RWMutex{},
 		pair:      pair,
 		thread:    thread,
 	}
@@ -57,6 +61,12 @@ func NewNGTIndex(database string, thread int) (NGTIndex, error) {
 
 func (idx NGTIndex) String() string {
 	return filepath.Base(idx.database)
+}
+
+func (idx *NGTIndex) SearchItem(key uint, limit int, epsilon float32) ([]int, error) {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+	return idx.GetNnsByKey(key, limit, epsilon)
 }
 
 func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error) {
@@ -101,19 +111,31 @@ func (idx *NGTIndex) builder() {
 	for args := range idx.buildChan {
 		switch args.action {
 		case ADD:
-			_, err := idx.addItem(args.key, args.w)
-			args.result <- err
+			func() {
+				idx.mu.Lock()
+				defer idx.mu.Unlock()
+				_, err := idx.addItem(args.key, args.w)
+				args.result <- err
+			}()
 		case DELETE:
-			args.result <- idx.removeItem(args.key)
+			func() {
+				idx.mu.Lock()
+				defer idx.mu.Unlock()
+				args.result <- idx.removeItem(args.key)
+			}()
 		case UPDATE:
-			if _, ok := idx.pair.idFromKey(uint(args.key)); ok {
-				err := idx.removeItem(args.key)
-				if err != nil {
-					args.result <- err
+			func() {
+				idx.mu.Lock()
+				defer idx.mu.Unlock()
+				if _, ok := idx.pair.idFromKey(uint(args.key)); ok {
+					err := idx.removeItem(args.key)
+					if err != nil {
+						args.result <- err
+					}
 				}
-			}
-			_, err := idx.addItem(args.key, args.w)
-			args.result <- err
+				_, err := idx.addItem(args.key, args.w)
+				args.result <- err
+			}()
 		case SAVE:
 			args.result <- idx.save()
 		case ASYNC_SAVE:
