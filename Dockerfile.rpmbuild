@@ -12,7 +12,10 @@ RUN rpmdev-setuptree
 WORKDIR /root
 RUN wget -q https://github.com/yahoojapan/NGT/archive/v${NGT_VERSION}.zip
 RUN unzip v${NGT_VERSION}.zip
-RUN mkdir NGT-${NGT_VERSION}/build
+WORKDIR /root/NGT-${NGT_VERSION}
+ADD rpmbuild/SOURCES/ngt-v${NGT_VERSION}.patch /root/NGT-${NGT_VERSION}/ngt.patch
+RUN patch -p1 < ngt.patch
+RUN mkdir build
 WORKDIR /root/NGT-${NGT_VERSION}/build
 RUN cmake .. && make && make install
 
