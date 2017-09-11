@@ -91,13 +91,29 @@ func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error
 	}
 }
 
+type NGTSearchError struct {
+	message string
+}
+
+func (err NGTSearchError) Error() string {
+	return err.message
+}
+
+func newNGTSearchErrorFrom(err error) error {
+	if err == nil {
+		return nil
+	} else {
+		return NGTSearchError{message: err.Error()}
+	}
+}
+
 func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
 	results, err := idx.index.Search(v, n, epsilon)
 	ids := make([]int, len(results))
 	for i, result := range results {
 		ids[i] = int(result.Id)
 	}
-	return ids, err
+	return ids, newNGTSearchErrorFrom(err)
 }
 
 type buildArgs struct {

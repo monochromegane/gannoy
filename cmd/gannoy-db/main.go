@@ -140,8 +140,12 @@ func main() {
 			limit = 10
 		}
 
-		gannoy := databases[database]
-		r, err := gannoy.SearchItem(uint(key), limit, 0.1)
+		db := databases[database]
+		r, err := db.SearchItem(uint(key), limit, 0.1)
+		switch searchErr := err.(type) {
+		case gannoy.NGTSearchError:
+			e.Logger.Warnf("Search error (database: %s, key: %d): %s", database, key, searchErr)
+		}
 		if err != nil || len(r) == 0 {
 			return c.NoContent(http.StatusNotFound)
 		}
