@@ -9,7 +9,7 @@
 Summary: Approximate nearest neighbor search server and dynamic index written in Golang.
 Name:    gannoy
 Version: 0.0.1
-Release: 5
+Release: 6
 License: MIT
 Group:   Applications/System
 URL:     https://github.com/monochromegane/gannoy
