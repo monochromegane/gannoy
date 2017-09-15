@@ -45,8 +45,12 @@ func TestAddItemAndRemoveItem(t *testing.T) {
 	if err != nil {
 		t.Errorf("NGTIndex.AddItem should not return error, but return %v", err)
 	}
+	err = index.AddItem(key+1, []float64{3.0})
+	if err != nil {
+		t.Errorf("NGTIndex.AddItem should not return error, but return %v", err)
+	}
 
-	keys, err := index.SearchItem(uint(key), 1, 0.1)
+	keys, err := index.SearchItem(uint(key), 2, 0.1)
 	if keys[0] != key {
 		t.Errorf("NGTIndex.AddItem should register object, but dose not register.")
 	}

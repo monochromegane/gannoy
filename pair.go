@@ -38,6 +38,24 @@ func (p *Pair) removeByKey(key interface{}) {
 	}
 }
 
+func (p *Pair) isEmpty() bool {
+	count := 0
+	p.keyToId.Range(func(key, value interface{}) bool {
+		count += 1
+		return false
+	})
+	return count <= 0
+}
+
+func (p *Pair) isLast() bool {
+	count := 0
+	p.keyToId.Range(func(key, value interface{}) bool {
+		count += 1
+		return count < 2
+	})
+	return count == 1
+}
+
 func newPair(file string) (Pair, error) {
 	f, err := os.OpenFile(file, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {

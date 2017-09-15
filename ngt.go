@@ -262,12 +262,17 @@ func (idx *NGTIndex) addItemWithoutCreateIndex(key int, v []float64) (uint, erro
 
 func (idx *NGTIndex) removeItem(key int) error {
 	if id, ok := idx.pair.idFromKey(uint(key)); ok {
-		err := idx.index.RemoveIndex(id.(uint))
-		if err != nil {
-			return err
+		if idx.pair.isLast() {
+			// If all is deleted, the next create index will stop responding.
+			return fmt.Errorf("Skip removing")
+		} else {
+			err := idx.index.RemoveIndex(id.(uint))
+			if err != nil {
+				return err
+			}
+			idx.pair.removeByKey(uint(key))
+			return nil
 		}
-		idx.pair.removeByKey(uint(key))
-		return nil
 	} else {
 		return fmt.Errorf("Not found")
 	}
