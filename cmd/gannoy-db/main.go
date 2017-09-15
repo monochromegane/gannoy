@@ -32,11 +32,12 @@ type Options struct {
 	LogDir               string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
 	LockDir              string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
 	WithServerStarter    bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
-	ShutDownTimeout      int    `short:"t" long:"timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
+	ShutDownTimeout      int    `short:"T" long:"shutdown-timeout" default:"10" description:"Specify the number of seconds for shutdown timeout."`
 	MaxConnections       int    `short:"m" long:"max-connections" default:"150" description:"Specify the number of max connections."`
 	AutoSave             bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
 	ConcurrentToAutoSave int    `short:"C" long:"concurrent-to-auto-save" default:"5" description:"Concurrent number to auto save."`
 	Thread               int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
+	Timeout              int    `short:"t" long:"timeout" default:"30" description:"Specify the number of seconds for timeout."`
 	Config               string `short:"c" long:"config" default:"" description:"Configuration file path."`
 	Version              bool   `short:"v" long:"version" description:"Show version"`
 }
@@ -115,7 +116,9 @@ func main() {
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
 			key := dir.Name()
-			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key), thread)
+			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
+				thread,
+				time.Duration(opts.Timeout)*time.Second)
 			if err != nil {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue
@@ -143,7 +146,7 @@ func main() {
 		db := databases[database]
 		r, err := db.SearchItem(uint(key), limit, 0.1)
 		switch searchErr := err.(type) {
-		case gannoy.NGTSearchError:
+		case gannoy.NGTSearchError, gannoy.TimeoutError:
 			e.Logger.Warnf("Search error (database: %s, key: %d): %s", database, key, searchErr)
 		}
 		if err != nil || len(r) == 0 {
@@ -167,9 +170,13 @@ func main() {
 			return err
 		}
 
-		gannoy := databases[database]
-		err = gannoy.UpdateItem(key, feature.W)
+		db := databases[database]
+		err = db.UpdateItem(key, feature.W)
 		if err != nil {
+			switch updateErr := err.(type) {
+			case gannoy.TimeoutError:
+				e.Logger.Warnf("Update error (database: %s, key: %d): %s", database, key, updateErr)
+			}
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 		return c.NoContent(http.StatusOK)
@@ -184,9 +191,13 @@ func main() {
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
-		gannoy := databases[database]
-		err = gannoy.RemoveItem(key)
+		db := databases[database]
+		err = db.RemoveItem(key)
 		if err != nil {
+			switch deleteErr := err.(type) {
+			case gannoy.TimeoutError:
+				e.Logger.Warnf("Delete error (database: %s, key: %d): %s", database, key, deleteErr)
+			}
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 

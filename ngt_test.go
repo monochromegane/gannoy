@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	ngt "github.com/monochromegane/go-ngt"
 )
@@ -27,7 +28,7 @@ func TestNewNGTIndex(t *testing.T) {
 	defer index.Drop()
 	index.Save()
 
-	_, err := NewNGTIndex(index.database, 1)
+	_, err := NewNGTIndex(index.database, 1, 1)
 	if err != nil {
 		t.Errorf("NewNGTIndex should not return error, but return %v", err)
 	}
@@ -36,7 +37,9 @@ func TestNewNGTIndex(t *testing.T) {
 func TestAddItemAndRemoveItem(t *testing.T) {
 	index := testCreateGraphAndTree("db", 1)
 	defer index.Drop()
+	index.Save()
 
+	index, _ = NewNGTIndex(index.database, 1, 10*time.Second)
 	key := 100
 	err := index.AddItem(key, []float64{1.0})
 	if err != nil {
@@ -62,6 +65,9 @@ func TestAddItemAndRemoveItem(t *testing.T) {
 func TestUpdateItemWhenNotExist(t *testing.T) {
 	index := testCreateGraphAndTree("db", 1)
 	defer index.Drop()
+	index.Save()
+
+	index, _ = NewNGTIndex(index.database, 1, 10*time.Second)
 
 	key := 100
 	err := index.UpdateItem(key, []float64{1.0})
@@ -78,6 +84,9 @@ func TestUpdateItemWhenNotExist(t *testing.T) {
 func TestUpdateItemWhenExist(t *testing.T) {
 	index := testCreateGraphAndTree("db", 1)
 	defer index.Drop()
+	index.Save()
+
+	index, _ = NewNGTIndex(index.database, 1, 10*time.Second)
 
 	key := 100
 	err := index.UpdateItem(key, []float64{1.0})
@@ -127,7 +136,7 @@ func TestUpdateItemWithSearch(t *testing.T) {
 	}
 	index.Save()
 	file := index.database
-	index, _ = NewNGTIndex(file, runtime.NumCPU()) // Avoid warining GraphAndTreeIndex::insert empty
+	index, _ = NewNGTIndex(file, runtime.NumCPU(), 10*time.Second) // Avoid warining GraphAndTreeIndex::insert empty
 	// defer index.Drop()
 
 	go func() {
@@ -183,7 +192,7 @@ func TestUpdateItemAndRemoveItemConcurrently(t *testing.T) {
 	}
 	index.Save()
 	file := index.database
-	index, _ = NewNGTIndex(file, runtime.NumCPU()) // Avoid warining GraphAndTreeIndex::insert empty
+	index, _ = NewNGTIndex(file, runtime.NumCPU(), 10*time.Second) // Avoid warining GraphAndTreeIndex::insert empty
 	defer index.Drop()
 
 	// UpdateItem concurrently

@@ -1,10 +1,12 @@
 package gannoy
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	ngt "github.com/monochromegane/go-ngt"
 )
@@ -16,6 +18,7 @@ type NGTIndex struct {
 	mu        *sync.RWMutex
 	pair      Pair
 	thread    int
+	timeout   time.Duration
 }
 
 func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
@@ -38,7 +41,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	return idx, nil
 }
 
-func NewNGTIndex(database string, thread int) (NGTIndex, error) {
+func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, error) {
 	index, err := ngt.OpenIndex(database)
 	if err != nil {
 		return NGTIndex{}, err
@@ -54,6 +57,7 @@ func NewNGTIndex(database string, thread int) (NGTIndex, error) {
 		mu:        &sync.RWMutex{},
 		pair:      pair,
 		thread:    thread,
+		timeout:   timeout,
 	}
 	go idx.builder()
 	return idx, nil
@@ -63,10 +67,33 @@ func (idx NGTIndex) String() string {
 	return filepath.Base(idx.database)
 }
 
+type searchResult struct {
+	ids []int
+	err error
+}
+
+func (idx *NGTIndex) searchWithTimeout(resultCh chan searchResult) searchResult {
+	ctx, cancel := context.WithTimeout(context.Background(), idx.timeout)
+	defer cancel()
+	select {
+	case result := <-resultCh:
+		return result
+	case <-ctx.Done():
+		return searchResult{err: newTimeoutErrorFrom(ctx.Err())}
+	}
+}
+
 func (idx *NGTIndex) SearchItem(key uint, limit int, epsilon float32) ([]int, error) {
 	idx.mu.RLock()
 	defer idx.mu.RUnlock()
-	return idx.GetNnsByKey(key, limit, epsilon)
+	resultCh := make(chan searchResult, 1)
+	go func() {
+		ids, err := idx.GetNnsByKey(key, limit, epsilon)
+		resultCh <- searchResult{ids: ids, err: err}
+		close(resultCh)
+	}()
+	result := idx.searchWithTimeout(resultCh)
+	return result.ids, result.err
 }
 
 func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error) {
@@ -91,22 +118,6 @@ func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error
 	}
 }
 
-type NGTSearchError struct {
-	message string
-}
-
-func (err NGTSearchError) Error() string {
-	return err.message
-}
-
-func newNGTSearchErrorFrom(err error) error {
-	if err == nil {
-		return nil
-	} else {
-		return NGTSearchError{message: err.Error()}
-	}
-}
-
 func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
 	results, err := idx.index.Search(v, n, epsilon)
 	ids := make([]int, len(results))
@@ -123,6 +134,17 @@ type buildArgs struct {
 	result chan error
 }
 
+func (idx *NGTIndex) buildWithTimeout(errCh chan error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), idx.timeout)
+	defer cancel()
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return newTimeoutErrorFrom(ctx.Err())
+	}
+}
+
 func (idx *NGTIndex) builder() {
 	for args := range idx.buildChan {
 		switch args.action {
@@ -130,27 +152,48 @@ func (idx *NGTIndex) builder() {
 			func() {
 				idx.mu.Lock()
 				defer idx.mu.Unlock()
-				_, err := idx.addItem(args.key, args.w)
-				args.result <- err
+				errCh := make(chan error, 1)
+				go func() {
+					_, err := idx.addItem(args.key, args.w)
+					errCh <- err
+					close(errCh)
+				}()
+				args.result <- idx.buildWithTimeout(errCh)
 			}()
 		case DELETE:
 			func() {
 				idx.mu.Lock()
 				defer idx.mu.Unlock()
-				args.result <- idx.removeItem(args.key)
+				errCh := make(chan error, 1)
+				go func() {
+					errCh <- idx.removeItem(args.key)
+					close(errCh)
+				}()
+				args.result <- idx.buildWithTimeout(errCh)
 			}()
 		case UPDATE:
 			func() {
 				idx.mu.Lock()
 				defer idx.mu.Unlock()
 				if _, ok := idx.pair.idFromKey(uint(args.key)); ok {
-					err := idx.removeItem(args.key)
+					errCh := make(chan error, 1)
+					go func() {
+						errCh <- idx.removeItem(args.key)
+						close(errCh)
+					}()
+					err := idx.buildWithTimeout(errCh)
 					if err != nil {
 						args.result <- err
+						return
 					}
 				}
-				_, err := idx.addItem(args.key, args.w)
-				args.result <- err
+				errCh := make(chan error, 1)
+				go func() {
+					_, err := idx.addItem(args.key, args.w)
+					errCh <- err
+					close(errCh)
+				}()
+				args.result <- idx.buildWithTimeout(errCh)
 			}()
 		case SAVE:
 			args.result <- idx.save()
@@ -162,18 +205,21 @@ func (idx *NGTIndex) builder() {
 
 func (idx *NGTIndex) AddItem(key int, w []float64) error {
 	args := buildArgs{action: ADD, key: key, w: w, result: make(chan error)}
+	defer close(args.result)
 	idx.buildChan <- args
 	return <-args.result
 }
 
 func (idx *NGTIndex) RemoveItem(key int) error {
 	args := buildArgs{action: DELETE, key: key, result: make(chan error)}
+	defer close(args.result)
 	idx.buildChan <- args
 	return <-args.result
 }
 
 func (idx *NGTIndex) UpdateItem(key int, w []float64) error {
 	args := buildArgs{action: UPDATE, key: key, w: w, result: make(chan error)}
+	defer close(args.result)
 	idx.buildChan <- args
 	return <-args.result
 }
@@ -223,7 +269,7 @@ func (idx *NGTIndex) removeItem(key int) error {
 		idx.pair.removeByKey(uint(key))
 		return nil
 	} else {
-		return fmt.Errorf("Not Found")
+		return fmt.Errorf("Not found")
 	}
 }
 
