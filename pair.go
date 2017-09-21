@@ -103,7 +103,7 @@ func newPairFromReader(r io.Reader) (Pair, error) {
 }
 
 func (p *Pair) save() error {
-	f, err := os.OpenFile(p.file, os.O_WRONLY, 0644)
+	f, err := os.OpenFile(p.file, os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -115,6 +115,7 @@ func (p *Pair) save() error {
 		record[1] = fmt.Sprint(value)
 		err := writer.Write(record)
 		if err != nil {
+			fmt.Printf("%v\n", err)
 			return false
 		}
 		return true
