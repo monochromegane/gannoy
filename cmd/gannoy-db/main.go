@@ -165,20 +165,17 @@ func main() {
 		if err != nil {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
-		feature := new(Feature)
-		if err := c.Bind(feature); err != nil {
-			return err
+		bin, err := ioutil.ReadAll(c.Request().Body)
+		if err != nil {
+			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 
 		db := databases[database]
-		err = db.UpdateItem(key, feature.W)
+		err = db.UpdateBinLog(key, gannoy.UPDATE, bin)
 		if err != nil {
-			switch updateErr := err.(type) {
-			case gannoy.TimeoutError:
-				e.Logger.Warnf("Update error (database: %s, key: %d): %s", database, key, updateErr)
-			}
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
+
 		return c.NoContent(http.StatusOK)
 	})
 
@@ -192,12 +189,8 @@ func main() {
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 		db := databases[database]
-		err = db.RemoveItem(key)
+		err = db.UpdateBinLog(key, gannoy.DELETE, []byte{})
 		if err != nil {
-			switch deleteErr := err.(type) {
-			case gannoy.TimeoutError:
-				e.Logger.Warnf("Delete error (database: %s, key: %d): %s", database, key, deleteErr)
-			}
 			return c.NoContent(http.StatusUnprocessableEntity)
 		}
 

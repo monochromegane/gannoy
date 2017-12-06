@@ -19,6 +19,7 @@ type NGTIndex struct {
 	pair      Pair
 	thread    int
 	timeout   time.Duration
+	bin       BinLog
 }
 
 func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
@@ -50,6 +51,11 @@ func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, 
 	if err != nil {
 		return NGTIndex{}, err
 	}
+	bin := NewBinLog(database + ".bin")
+	err = bin.Open()
+	if err != nil {
+		return NGTIndex{}, err
+	}
 	idx := NGTIndex{
 		database:  database,
 		index:     index,
@@ -58,6 +64,7 @@ func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, 
 		pair:      pair,
 		thread:    thread,
 		timeout:   timeout,
+		bin:       bin,
 	}
 	go idx.builder()
 	return idx, nil
@@ -125,6 +132,10 @@ func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, erro
 		ids[i] = int(result.Id)
 	}
 	return ids, newNGTSearchErrorFrom(err)
+}
+
+func (idx *NGTIndex) UpdateBinLog(key, action int, features []byte) error {
+	return idx.bin.Add(key, action, features)
 }
 
 type buildArgs struct {
