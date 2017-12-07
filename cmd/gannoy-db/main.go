@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"sync"
 	"syscall"
 	"time"
 
@@ -201,23 +200,6 @@ func main() {
 		return c.NoContent(http.StatusOK)
 	})
 
-	e.PUT("/savepoints/:database", func(c echo.Context) error {
-		database := c.Param("database")
-		if _, ok := databases[database]; !ok {
-			return c.NoContent(http.StatusUnprocessableEntity)
-		}
-		gannoy := databases[database]
-		gannoy.AsyncSave()
-		return c.NoContent(http.StatusAccepted)
-	})
-
-	e.PUT("/savepoints", func(c echo.Context) error {
-		for _, gannoy := range databases {
-			gannoy.AsyncSave()
-		}
-		return c.NoContent(http.StatusAccepted)
-	})
-
 	e.GET("/databases", func(c echo.Context) error {
 		json := make([]string, len(databases))
 		i := 0
@@ -263,45 +245,10 @@ func main() {
 		e.Logger.Warn(err)
 	}
 
-	// Save databases
-	if opts.AutoSave {
-		save(databases, e.Logger)
-	}
-
 	// Close databases
 	for _, db := range databases {
 		db.Close()
 	}
-}
-
-func save(databases map[string]gannoy.NGTIndex, logger echo.Logger) {
-	var wg sync.WaitGroup
-	wg.Add(len(databases))
-
-	saveChan := make(chan string, len(databases))
-	worker := func() {
-		for key := range saveChan {
-			func(wg *sync.WaitGroup) {
-				defer wg.Done()
-				if database, ok := databases[key]; ok {
-					err := database.Save()
-					if err != nil {
-						logger.Errorf("Database (%s) save failed. %s", database, err)
-					} else {
-						logger.Infof("Database (%s) was successfully saved", database)
-					}
-				}
-			}(&wg)
-		}
-	}
-	for i := 0; i < opts.ConcurrentToAutoSave; i++ {
-		go worker()
-	}
-	for key, _ := range databases {
-		saveChan <- key
-	}
-	wg.Wait()
-	close(saveChan)
 }
 
 func isDatabaseDir(dir os.FileInfo) bool {
