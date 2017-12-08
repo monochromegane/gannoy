@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -131,22 +130,12 @@ func (idx *NGTIndex) ApplyBinLog() error {
 	}
 	defer os.RemoveAll(tmp)
 
-	// Copy db and map
-	tmpdb, err := idx.copyDatabase(tmp)
-	if err != nil {
-		return err
-	}
-	tmpmap, err := idx.copyMap(tmp)
-	if err != nil {
-		return err
-	}
-
 	// Open as new NGTIndex
-	index, err := ngt.OpenIndex(tmpdb)
+	index, err := ngt.OpenIndex(idx.database)
 	if err != nil {
 		return err
 	}
-	pair, err := newPair(tmpmap)
+	pair, err := newPair(idx.pair.file)
 	if err != nil {
 		return err
 	}
@@ -193,7 +182,8 @@ func (idx *NGTIndex) ApplyBinLog() error {
 			pair.addPair(uint(key), newId)
 		}
 	}
-	err = pair.save()
+	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))
+	err = pair.saveAs(tmpmap)
 	if err != nil {
 		return err
 	}
@@ -201,12 +191,13 @@ func (idx *NGTIndex) ApplyBinLog() error {
 	if err != nil {
 		return err
 	}
+	tmpdb := filepath.Join(tmp, path.Base(idx.database))
 	err = index.SaveIndex(tmpdb)
 	if err != nil {
 		return err
 	}
 
-	// Defer: delete old binlog (timestamp < current time)
+	// delete old binlog (timestamp < current time)
 	err = idx.bin.Clear(current)
 	if err != nil {
 		return err
@@ -236,57 +227,6 @@ func (idx *NGTIndex) Save() error {
 		return err
 	}
 	return idx.index.SaveIndex(idx.database)
-}
-
-func (idx NGTIndex) copyDatabase(tmp string) (string, error) {
-	path := filepath.Join(tmp, path.Base(idx.database))
-	err := os.Mkdir(path, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	files, err := ioutil.ReadDir(idx.database)
-	if err != nil {
-		return "", err
-	}
-	for _, f := range files {
-		src, err := os.Open(filepath.Join(idx.database, f.Name()))
-		if err != nil {
-			return "", err
-		}
-
-		dst, err := os.Create(filepath.Join(path, f.Name()))
-		if err != nil {
-			return "", err
-		}
-		_, err = io.Copy(dst, src)
-		if err != nil {
-			return "", err
-		}
-
-		src.Close()
-		dst.Close()
-	}
-
-	return path, nil
-}
-
-func (idx NGTIndex) copyMap(tmp string) (string, error) {
-	src, err := os.Open(idx.pair.file)
-	if err != nil {
-		return "", err
-	}
-	defer src.Close()
-
-	path := filepath.Join(tmp, path.Base(idx.pair.file))
-	dst, err := os.Create(path)
-	if err != nil {
-		return "", err
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	return path, err
 }
 
 func (idx *NGTIndex) searchWithTimeout(resultCh chan searchResult) searchResult {

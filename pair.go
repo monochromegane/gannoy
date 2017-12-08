@@ -103,7 +103,11 @@ func newPairFromReader(r io.Reader) (Pair, error) {
 }
 
 func (p *Pair) save() error {
-	f, err := os.OpenFile(p.file, os.O_WRONLY|os.O_TRUNC, 0644)
+	return p.saveAs(p.file)
+}
+
+func (p *Pair) saveAs(path string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
