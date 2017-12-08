@@ -31,3 +31,10 @@ func newTimeoutErrorFrom(err error) error {
 		return TimeoutError{message: err.Error()}
 	}
 }
+
+type TargetNotExistError struct {
+}
+
+func (err TargetNotExistError) Error() string {
+	return "Update target does not exist."
+}

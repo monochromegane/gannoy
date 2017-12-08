@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -27,18 +28,17 @@ import (
 )
 
 type Options struct {
-	DataDir              string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
-	LogDir               string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
-	LockDir              string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
-	WithServerStarter    bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
-	ShutDownTimeout      int    `short:"T" long:"shutdown-timeout" default:"60" description:"Specify the number of seconds for shutdown timeout."`
-	MaxConnections       int    `short:"m" long:"max-connections" default:"200" description:"Specify the number of max connections."`
-	AutoSave             bool   `short:"S" long:"auto-save" description:"Automatically save the database when stopped."`
-	ConcurrentToAutoSave int    `short:"C" long:"concurrent-to-auto-save" default:"5" description:"Concurrent number to auto save."`
-	Thread               int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
-	Timeout              int    `short:"t" long:"timeout" default:"30" description:"Specify the number of seconds for timeout."`
-	Config               string `short:"c" long:"config" default:"" description:"Configuration file path."`
-	Version              bool   `short:"v" long:"version" description:"Show version"`
+	DataDir           string `short:"d" long:"data-dir" default:"." description:"Specify the directory where the meta files are located."`
+	LogDir            string `short:"l" long:"log-dir" default-mask:"os.Stdout" description:"Specify the log output directory."`
+	LockDir           string `short:"L" long:"lock-dir" default:"." description:"Specify the lock file directory. This option is used only server-starter option."`
+	WithServerStarter bool   `short:"s" long:"server-starter" description:"Use server-starter listener for server address."`
+	ShutDownTimeout   int    `short:"T" long:"shutdown-timeout" default:"60" description:"Specify the number of seconds for shutdown timeout."`
+	MaxConnections    int    `short:"m" long:"max-connections" default:"200" description:"Specify the number of max connections."`
+	Thread            int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
+	Timeout           int    `short:"t" long:"timeout" default:"30" description:"Specify the number of seconds for timeout."`
+	BinLogInterval    int    `short:"i" long:"binlog-interval" default:"300" description:"Specify the number of seconds for application binlog interval."`
+	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
+	Version           bool   `short:"v" long:"version" description:"Show version"`
 }
 
 var opts Options
@@ -111,13 +111,19 @@ func main() {
 	if thread == 0 {
 		thread = runtime.NumCPU()
 	}
+
+	resultCh := make(chan gannoy.ApplicationResult)
+	rand.Seed(time.Now().UnixNano())
+
 	databases := map[string]gannoy.NGTIndex{}
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
 			key := dir.Name()
 			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
 				thread,
-				time.Duration(opts.Timeout)*time.Second)
+				time.Duration(opts.Timeout)*time.Second,
+				time.Duration(opts.BinLogInterval+rand.Intn(opts.BinLogInterval))*time.Second, // Shifting the execution time.
+				resultCh)
 			if err != nil {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue
@@ -126,6 +132,33 @@ func main() {
 			databases[key] = index
 		}
 	}
+
+	// auto application
+	go func() {
+		for result := range resultCh {
+			key := result.Key
+			if result.Err != nil {
+				if _, ok := result.Err.(gannoy.TargetNotExistError); ok {
+					continue
+				}
+				e.Logger.Warnf("Database (%s) application failed. %s", key, result.Err)
+				continue
+			}
+			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
+				thread,
+				time.Duration(opts.Timeout)*time.Second,
+				time.Duration(opts.BinLogInterval)*time.Second,
+				resultCh)
+			if err != nil {
+				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
+				continue
+			}
+			e.Logger.Infof("Database (%s) was successfully loaded", key)
+			current := databases[key]
+			databases[key] = index
+			current.Close()
+		}
+	}()
 
 	// Define API
 	e.GET("/search", func(c echo.Context) error {

@@ -39,7 +39,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	return idx, nil
 }
 
-func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, error) {
+func NewNGTIndex(database string, thread int, timeout, wait time.Duration, resultCh chan ApplicationResult) (NGTIndex, error) {
 	index, err := ngt.OpenIndex(database)
 	if err != nil {
 		return NGTIndex{}, err
@@ -61,7 +61,28 @@ func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, 
 		timeout:  timeout,
 		bin:      bin,
 	}
+	if wait > 0 {
+		go idx.waitApplyBinLog(wait, resultCh)
+	}
 	return idx, nil
+}
+
+type ApplicationResult struct {
+	Key string
+	Err error
+}
+
+func (idx *NGTIndex) waitApplyBinLog(d time.Duration, resultCh chan ApplicationResult) {
+	t := time.NewTicker(d)
+	defer t.Stop()
+
+	for _ = range t.C {
+		err := idx.ApplyBinLog()
+		resultCh <- ApplicationResult{Key: idx.String(), Err: err}
+		if err == nil {
+			break
+		}
+	}
 }
 
 func (idx NGTIndex) String() string {
@@ -151,6 +172,7 @@ func (idx *NGTIndex) ApplyBinLog() error {
 	defer rows.Close()
 
 	// Apply binlog
+	cnt := 0
 	for rows.Next() {
 		var key int
 		var action int
@@ -181,7 +203,12 @@ func (idx *NGTIndex) ApplyBinLog() error {
 			}
 			pair.addPair(uint(key), newId)
 		}
+		cnt += 1
 	}
+	if cnt == 0 {
+		return TargetNotExistError{}
+	}
+
 	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))
 	err = pair.saveAs(tmpmap)
 	if err != nil {
