@@ -119,10 +119,14 @@ func main() {
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
 			key := dir.Name()
+			r := 0
+			if opts.BinLogInterval > 0 {
+				r = rand.Intn(opts.BinLogInterval)
+			}
 			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
 				thread,
 				time.Duration(opts.Timeout)*time.Second,
-				time.Duration(opts.BinLogInterval+rand.Intn(opts.BinLogInterval))*time.Second, // Shifting the execution time.
+				time.Duration(opts.BinLogInterval+r)*time.Second, // Shifting the execution time.
 				resultCh)
 			if err != nil {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
@@ -134,6 +138,7 @@ func main() {
 	}
 
 	// auto application
+	exitCh := make(chan struct{})
 	go func() {
 		for result := range resultCh {
 			key := result.Key
@@ -141,9 +146,18 @@ func main() {
 				if _, ok := result.Err.(gannoy.TargetNotExistError); ok {
 					continue
 				}
-				e.Logger.Warnf("Database (%s) application failed. %s", key, result.Err)
+				e.Logger.Warnf("Database (%s) application from binlog failed. %s", key, result.Err)
 				continue
 			}
+
+			// Switch database
+			current := databases[key]
+			err := current.ApplyToDB(result)
+			if err != nil {
+				e.Logger.Warnf("Database (%s) application to DB failed. %s", key, err)
+				continue
+			}
+
 			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
 				thread,
 				time.Duration(opts.Timeout)*time.Second,
@@ -154,10 +168,10 @@ func main() {
 				continue
 			}
 			e.Logger.Infof("Database (%s) was successfully loaded", key)
-			current := databases[key]
 			databases[key] = index
 			current.Close()
 		}
+		exitCh <- struct{}{}
 	}()
 
 	// Define API
@@ -277,6 +291,13 @@ func main() {
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Warn(err)
 	}
+
+	// Wait apply and switch binlog
+	for _, db := range databases {
+		db.Cancel()
+	}
+	close(resultCh)
+	<-exitCh
 
 	// Close databases
 	for _, db := range databases {

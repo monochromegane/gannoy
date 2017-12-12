@@ -20,6 +20,9 @@ type NGTIndex struct {
 	thread   int
 	timeout  time.Duration
 	bin      BinLog
+	ctx      context.Context
+	cancel   context.CancelFunc
+	exitCh   chan struct{}
 }
 
 func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
@@ -62,25 +65,37 @@ func NewNGTIndex(database string, thread int, timeout, wait time.Duration, resul
 		bin:      bin,
 	}
 	if wait > 0 {
-		go idx.waitApplyBinLog(wait, resultCh)
+		ctx, cancel := context.WithCancel(context.Background())
+		idx.ctx = ctx
+		idx.cancel = cancel
+		idx.exitCh = make(chan struct{})
+		go idx.waitApplyFromBinLog(wait, resultCh)
 	}
 	return idx, nil
 }
 
-type ApplicationResult struct {
-	Key string
-	Err error
-}
+func (idx *NGTIndex) waitApplyFromBinLog(d time.Duration, resultCh chan ApplicationResult) {
+	defer func() {
+		idx.exitCh <- struct{}{}
+	}()
 
-func (idx *NGTIndex) waitApplyBinLog(d time.Duration, resultCh chan ApplicationResult) {
 	t := time.NewTicker(d)
 	defer t.Stop()
 
-	for _ = range t.C {
-		err := idx.ApplyBinLog()
-		resultCh <- ApplicationResult{Key: idx.String(), Err: err}
-		if err == nil {
-			break
+	childCtx, cancel := context.WithCancel(idx.ctx)
+	defer cancel()
+
+loop:
+	for {
+		select {
+		case <-t.C:
+			result := idx.ApplyFromBinLog(childCtx)
+			resultCh <- result
+			if result.Err == nil {
+				break loop
+			}
+		case <-idx.ctx.Done():
+			break loop
 		}
 	}
 }
@@ -144,21 +159,74 @@ type Feature struct {
 	W []float64 `json:"features"`
 }
 
-func (idx *NGTIndex) ApplyBinLog() error {
-	tmp, err := ioutil.TempDir("", "gannoy")
+type ApplicationResult struct {
+	Key     string
+	Current string
+	Base    string
+	DB      string
+	Map     string
+	Err     error
+}
+
+func (idx *NGTIndex) ApplyFromBinLog(ctx context.Context) ApplicationResult {
+	resultCh := make(chan ApplicationResult)
+
+	go func() {
+		resultCh <- idx.applyFromBinLog()
+	}()
+
+	for {
+		select {
+		case result := <-resultCh:
+			return result
+		case <-ctx.Done():
+			return ApplicationResult{Key: idx.String(), Err: fmt.Errorf("Canceled")}
+		}
+	}
+}
+
+func (idx *NGTIndex) ApplyToDB(result ApplicationResult) error {
+	defer os.RemoveAll(result.Base)
+	defer idx.bin.Clear(result.Current)
+
+	err := os.Rename(result.Map, idx.pair.file)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	files, err := ioutil.ReadDir(result.DB)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		err = os.Rename(filepath.Join(result.DB, f.Name()), filepath.Join(idx.database, f.Name()))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
+	tmp, err := ioutil.TempDir("", "gannoy")
+	if err != nil {
+		return ApplicationResult{Key: idx.String(), Err: err}
+	}
+
+	rmTmp := true
+	defer func() {
+		if rmTmp {
+			os.RemoveAll(tmp)
+		}
+	}()
 
 	// Open as new NGTIndex
 	index, err := ngt.OpenIndex(idx.database)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 	pair, err := newPair(idx.pair.file)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 
 	// Get current time
@@ -167,7 +235,7 @@ func (idx *NGTIndex) ApplyBinLog() error {
 	// Select from binlog where current time
 	rows, err := idx.bin.Get(current)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 	defer rows.Close()
 
@@ -180,14 +248,14 @@ func (idx *NGTIndex) ApplyBinLog() error {
 
 		err := rows.Scan(&key, &action, &features)
 		if err != nil {
-			return err
+			return ApplicationResult{Key: idx.String(), Err: err}
 		}
 		switch action {
 		case DELETE:
 			if id, ok := pair.idFromKey(uint(key)); ok {
 				err := index.RemoveIndex(id.(uint))
 				if err != nil {
-					return err
+					return ApplicationResult{Key: idx.String(), Err: err}
 				}
 				pair.removeByKey(uint(key))
 			}
@@ -195,57 +263,43 @@ func (idx *NGTIndex) ApplyBinLog() error {
 			var f Feature
 			err = json.Unmarshal(features, &f)
 			if err != nil {
-				return err
+				return ApplicationResult{Key: idx.String(), Err: err}
 			}
 			newId, err := index.InsertIndex(f.W)
 			if err != nil {
-				return err
+				return ApplicationResult{Key: idx.String(), Err: err}
 			}
 			pair.addPair(uint(key), newId)
 		}
 		cnt += 1
 	}
 	if cnt == 0 {
-		return TargetNotExistError{}
+		return ApplicationResult{Key: idx.String(), Err: TargetNotExistError{}}
 	}
 
 	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))
 	err = pair.saveAs(tmpmap)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 	err = index.CreateIndex(idx.thread)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 	tmpdb := filepath.Join(tmp, path.Base(idx.database))
 	err = index.SaveIndex(tmpdb)
 	if err != nil {
-		return err
+		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 
-	// delete old binlog (timestamp < current time)
-	err = idx.bin.Clear(current)
-	if err != nil {
-		return err
+	rmTmp = false
+	return ApplicationResult{
+		Key:     idx.String(),
+		Current: current,
+		Base:    tmp,
+		DB:      tmpdb,
+		Map:     tmpmap,
 	}
-
-	// Overwrite
-	err = os.Rename(tmpmap, idx.pair.file)
-	if err != nil {
-		return err
-	}
-	files, err := ioutil.ReadDir(tmpdb)
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		err = os.Rename(filepath.Join(tmpdb, f.Name()), filepath.Join(idx.database, f.Name()))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (idx *NGTIndex) Save() error {
@@ -294,6 +348,14 @@ func (idx *NGTIndex) existItem(id uint) bool {
 
 func (idx *NGTIndex) Close() {
 	idx.index.Close()
+}
+
+func (idx *NGTIndex) Cancel() {
+	if idx.ctx == nil {
+		return
+	}
+	idx.cancel()
+	<-idx.exitCh
 }
 
 func (idx *NGTIndex) Drop() error {
