@@ -61,6 +61,8 @@ func newPair(file string) (Pair, error) {
 	if err != nil {
 		return Pair{}, err
 	}
+	defer f.Close()
+
 	pair, err := newPairFromReader(f)
 	if err != nil {
 		return pair, err
@@ -111,6 +113,8 @@ func (p *Pair) saveAs(path string) error {
 	if err != nil {
 		return err
 	}
+	defer f.Close()
+
 	writer := csv.NewWriter(f)
 	writer.Comma = ','
 	p.keyToId.Range(func(key, value interface{}) bool {
