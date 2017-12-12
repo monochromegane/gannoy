@@ -230,7 +230,7 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 	}
 
 	// Get current time
-	current := time.Now().Format("2006-01-02 03:04:05")
+	current := time.Now().Format("2006-01-02 15:04:05")
 
 	// Select from binlog where current time
 	rows, err := idx.bin.Get(current)
