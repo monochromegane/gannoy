@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -92,14 +93,14 @@ func main() {
 	e := echo.New()
 
 	// initialize log
-	l, err := initializeLog(opts.LogDir)
+	w, err := initializeLog(opts.LogDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	e.Logger.SetLevel(log.INFO)
-	e.Logger.SetOutput(l)
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: l}))
+	e.Logger.SetOutput(w)
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: w}))
 
 	// Load databases
 	dirs, err := ioutil.ReadDir(opts.DataDir)
@@ -282,10 +283,26 @@ func main() {
 		}
 	}()
 
+	// Wait signals
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, sig)
-	<-sigCh
+	signal.Notify(sigCh, sig, syscall.SIGUSR1)
+loop:
+	for {
+		s := <-sigCh
+		switch s {
+		case syscall.SIGUSR1:
+			if rw, ok := w.(*gannoy.ReopenableWriter); ok {
+				err := rw.ReOpen()
+				if err != nil {
+					e.Logger.Warnf("ReOpen log file failed: %s", err)
+				}
+			}
+		case sig:
+			break loop
+		}
+	}
 
+	// Shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(opts.ShutDownTimeout)*time.Second)
 	defer cancel()
 	if err := e.Shutdown(ctx); err != nil {
@@ -349,12 +366,12 @@ func initializeLock(lockDir string) (lockfile.Lockfile, error) {
 	return lockfile.New(filepath.Join(lockDir, lock))
 }
 
-func initializeLog(logDir string) (*os.File, error) {
+func initializeLog(logDir string) (io.Writer, error) {
 	if logDir == "" {
 		return os.Stdout, nil
 	}
 	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 		return nil, err
 	}
-	return os.OpenFile(filepath.Join(logDir, "gannoy-db.log"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	return gannoy.NewReopenableWriter(filepath.Join(logDir, "gannoy-db.log"))
 }
