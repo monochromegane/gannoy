@@ -224,6 +224,8 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
+	defer index.Close()
+
 	pair, err := newPair(idx.pair.file)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
