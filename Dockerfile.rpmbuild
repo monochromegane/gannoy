@@ -1,7 +1,7 @@
 FROM centos:7
 MAINTAINER dev.kuro.obi@gmail.com
 
-ENV VERSION 0.0.1
+ENV VERSION 0.0.2
 ENV GO_VERSION 1.9
 ENV NGT_VERSION 1.2.0
 
@@ -30,6 +30,7 @@ RUN go get github.com/nightlyone/lockfile && \
     go get github.com/lestrrat/go-server-starter/listener && \
     go get golang.org/x/net/netutil && \
     go get golang.org/x/sync/syncmap && \
+    go get github.com/mattn/go-sqlite3 && \
     go get github.com/monochromegane/conflag && \
     go get github.com/monochromegane/go-ngt
 RUN mkdir -p /root/go/src/github.com/monochromegane/gannoy
