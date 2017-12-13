@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	ngt "github.com/monochromegane/go-ngt"
@@ -59,6 +60,17 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 	if err != nil {
 		return err
 	}
+	err = index.Save()
+	if err != nil {
+		return err
+	}
+	index.Close()
+
+	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0, 0, nil)
+	if err != nil {
+		return err
+	}
+	defer index.Close()
 
 	stat, _ := ann.Stat()
 	count := int(stat.Size() / c.nodeSize())
@@ -92,16 +104,17 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 			}
 		}
 
-		_, err = index.addItemWithoutCreateIndex(key, vec)
+		err = index.UpdateBinLog(key, UPDATE, f2b(vec))
 		if err != nil {
 			return err
 		}
 	}
-	err = index.index.CreateIndex(c.thread)
-	if err != nil {
-		return err
+	result := index.applyFromBinLog()
+	if result.Err != nil {
+		return result.Err
 	}
-	return index.Save()
+
+	return index.ApplyToDB(result)
 }
 
 func (c converter) offset(index int) int64 {
@@ -162,6 +175,17 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 	if err != nil {
 		return err
 	}
+	err = index.Save()
+	if err != nil {
+		return err
+	}
+	index.Close()
+
+	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0, 0, nil)
+	if err != nil {
+		return err
+	}
+	defer index.Close()
 
 	reader := csv.NewReader(file)
 	for {
@@ -186,14 +210,28 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 				vec[i] = feature
 			}
 		}
-		_, err = index.addItemWithoutCreateIndex(key, vec)
+		err = index.UpdateBinLog(key, UPDATE, f2b(vec))
 		if err != nil {
 			return err
 		}
 	}
-	err = index.index.CreateIndex(c.thread)
-	if err != nil {
-		return err
+
+	result := index.applyFromBinLog()
+	if result.Err != nil {
+		return result.Err
 	}
-	return index.Save()
+
+	return index.ApplyToDB(result)
+}
+
+func f2b(fs []float64) []byte {
+	template := `{"features":[%s]}`
+
+	ss := make([]string, len(fs))
+	for i, f := range fs {
+		s := strconv.FormatFloat(f, 'f', -1, 64)
+		ss[i] = s
+	}
+
+	return []byte(fmt.Sprintf(template, strings.Join(ss, ",")))
 }

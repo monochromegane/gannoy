@@ -34,10 +34,16 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	if err != nil {
 		return NGTIndex{}, err
 	}
+	bin := NewBinLog(database + ".bin")
+	err = bin.Open()
+	if err != nil {
+		return NGTIndex{}, err
+	}
 	idx := NGTIndex{
 		database: database,
 		index:    index,
 		pair:     pair,
+		bin:      bin,
 	}
 	return idx, nil
 }
