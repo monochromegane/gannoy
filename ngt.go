@@ -225,6 +225,23 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 		}
 	}()
 
+	// Get current time
+	current := time.Now().Format("2006-01-02 15:04:05")
+
+	// Select from binlog where current time
+	cnt, err := idx.bin.Count(current)
+	if err != nil {
+		return ApplicationResult{Key: idx.String(), Err: err}
+	} else if cnt == 0 {
+		return ApplicationResult{Key: idx.String(), Err: TargetNotExistError{}}
+	}
+
+	rows, err := idx.bin.Get(current)
+	if err != nil {
+		return ApplicationResult{Key: idx.String(), Err: err}
+	}
+	defer rows.Close()
+
 	// Open as new NGTIndex
 	index, err := ngt.OpenIndex(idx.database)
 	if err != nil {
@@ -237,18 +254,7 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 
-	// Get current time
-	current := time.Now().Format("2006-01-02 15:04:05")
-
-	// Select from binlog where current time
-	rows, err := idx.bin.Get(current)
-	if err != nil {
-		return ApplicationResult{Key: idx.String(), Err: err}
-	}
-	defer rows.Close()
-
 	// Apply binlog
-	cnt := 0
 	for rows.Next() {
 		var key int
 		var action int
@@ -279,10 +285,6 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 			}
 			pair.addPair(uint(key), newId)
 		}
-		cnt += 1
-	}
-	if cnt == 0 {
-		return ApplicationResult{Key: idx.String(), Err: TargetNotExistError{}}
 	}
 
 	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))

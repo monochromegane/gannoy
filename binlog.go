@@ -59,6 +59,12 @@ func (b BinLog) Get(current string) (*sql.Rows, error) {
 	return b.db.Query(`select key, action, features from features where updated_at <= ?`, current)
 }
 
+func (b BinLog) Count(current string) (int, error) {
+	var cnt int
+	err := b.db.QueryRow(`select count(key) from features where updated_at <= ?`, current).Scan(&cnt)
+	return cnt, err
+}
+
 func (b BinLog) Clear(current string) error {
 	_, err := b.db.Exec(`delete from features where updated_at <= ?`, current)
 	return err

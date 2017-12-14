@@ -113,7 +113,7 @@ func main() {
 		thread = runtime.NumCPU()
 	}
 
-	resultCh := make(chan gannoy.ApplicationResult)
+	resultCh := make(chan gannoy.ApplicationResult, len(dirs))
 	rand.Seed(time.Now().UnixNano())
 
 	databases := map[string]gannoy.NGTIndex{}
