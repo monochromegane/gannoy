@@ -6,54 +6,36 @@ import (
 	"io"
 	"os"
 	"strconv"
-
-	"golang.org/x/sync/syncmap"
 )
 
 type Pair struct {
-	keyToId *syncmap.Map
-	idToKey *syncmap.Map
+	keyToId map[interface{}]interface{}
+	idToKey map[interface{}]interface{}
 	file    string
 }
 
 func (p *Pair) addPair(key, id interface{}) {
-	p.keyToId.Store(key, id)
-	p.idToKey.Store(id, key)
+	p.keyToId[key] = id
+	p.idToKey[id] = key
 }
 
 func (p *Pair) keyFromId(id interface{}) (interface{}, bool) {
-	return p.idToKey.Load(id)
+	key, ok := p.idToKey[id]
+	return key, ok
 }
 
 func (p *Pair) idFromKey(key interface{}) (interface{}, bool) {
-	return p.keyToId.Load(key)
+	id, ok := p.keyToId[key]
+	return id, ok
 }
 
 func (p *Pair) removeByKey(key interface{}) {
 	if id, ok := p.idFromKey(key); ok {
-		p.keyToId.Delete(key)
-		p.idToKey.Delete(id)
+		delete(p.keyToId, key)
+		delete(p.idToKey, id)
 	} else {
-		p.keyToId.Delete(key)
+		delete(p.keyToId, key)
 	}
-}
-
-func (p *Pair) isEmpty() bool {
-	count := 0
-	p.keyToId.Range(func(key, value interface{}) bool {
-		count += 1
-		return false
-	})
-	return count <= 0
-}
-
-func (p *Pair) isLast() bool {
-	count := 0
-	p.keyToId.Range(func(key, value interface{}) bool {
-		count += 1
-		return count < 2
-	})
-	return count == 1
 }
 
 func newPair(file string) (Pair, error) {
@@ -72,8 +54,8 @@ func newPair(file string) (Pair, error) {
 }
 
 func newPairFromReader(r io.Reader) (Pair, error) {
-	keyToId := &syncmap.Map{}
-	idToKey := &syncmap.Map{}
+	keyToId := map[interface{}]interface{}{}
+	idToKey := map[interface{}]interface{}{}
 
 	reader := csv.NewReader(r)
 	reader.Comma = ','
@@ -94,8 +76,8 @@ func newPairFromReader(r io.Reader) (Pair, error) {
 		}
 		uintKey := uint(key)
 		uintId := uint(id)
-		keyToId.Store(uintKey, uintId)
-		idToKey.Store(uintId, uintKey)
+		keyToId[uintKey] = uintId
+		idToKey[uintId] = uintKey
 	}
 
 	return Pair{
@@ -117,23 +99,21 @@ func (p *Pair) saveAs(path string) error {
 
 	writer := csv.NewWriter(f)
 	writer.Comma = ','
-	p.keyToId.Range(func(key, value interface{}) bool {
+	for key, value := range p.keyToId {
 		record := make([]string, 2)
 		record[0] = fmt.Sprint(key)
 		record[1] = fmt.Sprint(value)
 		err := writer.Write(record)
 		if err != nil {
-			fmt.Printf("%v\n", err)
-			return false
+			return err
 		}
-		return true
-	})
+	}
 	writer.Flush()
 	return nil
 }
 
 func (p *Pair) drop() error {
-	p.keyToId = &syncmap.Map{}
-	p.idToKey = &syncmap.Map{}
+	p.keyToId = map[interface{}]interface{}{}
+	p.idToKey = map[interface{}]interface{}{}
 	return os.Remove(p.file)
 }
