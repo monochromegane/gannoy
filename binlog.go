@@ -42,7 +42,7 @@ func (b *BinLog) Open() error {
 	return nil
 }
 
-func (b BinLog) Close() error {
+func (b *BinLog) Close() error {
 	err := b.stms.Close()
 	if err != nil {
 		return err

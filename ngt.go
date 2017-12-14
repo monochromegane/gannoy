@@ -356,6 +356,7 @@ func (idx *NGTIndex) existItem(id uint) bool {
 
 func (idx *NGTIndex) Close() {
 	idx.index.Close()
+	idx.bin.Close()
 }
 
 func (idx *NGTIndex) Cancel() {
