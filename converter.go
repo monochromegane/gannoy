@@ -66,7 +66,7 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 	}
 	index.Close()
 
-	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0, 0, nil)
+	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 	}
 	index.Close()
 
-	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0, 0, nil)
+	index, err = NewNGTIndex(filepath.Join(path, to), c.thread, 0)
 	if err != nil {
 		return err
 	}

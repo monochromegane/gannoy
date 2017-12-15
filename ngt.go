@@ -48,7 +48,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	return idx, nil
 }
 
-func NewNGTIndex(database string, thread int, timeout, wait time.Duration, resultCh chan ApplicationResult) (NGTIndex, error) {
+func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, error) {
 	index, err := ngt.OpenIndex(database)
 	if err != nil {
 		return NGTIndex{}, err
@@ -62,48 +62,45 @@ func NewNGTIndex(database string, thread int, timeout, wait time.Duration, resul
 	if err != nil {
 		return NGTIndex{}, err
 	}
-	idx := NGTIndex{
+	return NGTIndex{
 		database: database,
 		index:    index,
 		pair:     pair,
 		thread:   thread,
 		timeout:  timeout,
 		bin:      bin,
-	}
-	if wait > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		idx.ctx = ctx
-		idx.cancel = cancel
-		idx.exitCh = make(chan struct{})
-		go idx.waitApplyFromBinLog(wait, resultCh)
-	}
-	return idx, nil
+	}, nil
 }
 
-func (idx *NGTIndex) waitApplyFromBinLog(d time.Duration, resultCh chan ApplicationResult) {
-	defer func() {
-		idx.exitCh <- struct{}{}
-	}()
+func (idx *NGTIndex) WaitApplyFromBinLog(d time.Duration, resultCh chan ApplicationResult) {
+	idx.ctx, idx.cancel = context.WithCancel(context.Background())
+	idx.exitCh = make(chan struct{})
 
-	t := time.NewTicker(d)
-	defer t.Stop()
+	go func() {
+		defer func() {
+			idx.exitCh <- struct{}{}
+		}()
 
-	childCtx, cancel := context.WithCancel(idx.ctx)
-	defer cancel()
+		t := time.NewTicker(d)
+		defer t.Stop()
 
-loop:
-	for {
-		select {
-		case <-t.C:
-			result := idx.ApplyFromBinLog(childCtx)
-			resultCh <- result
-			if result.Err == nil {
+		childCtx, cancel := context.WithCancel(idx.ctx)
+		defer cancel()
+
+	loop:
+		for {
+			select {
+			case <-t.C:
+				result := idx.ApplyFromBinLog(childCtx)
+				resultCh <- result
+				if result.Err == nil {
+					break loop
+				}
+			case <-idx.ctx.Done():
 				break loop
 			}
-		case <-idx.ctx.Done():
-			break loop
 		}
-	}
+	}()
 }
 
 func (idx NGTIndex) String() string {
@@ -171,6 +168,7 @@ type ApplicationResult struct {
 	Base    string
 	DB      string
 	Map     string
+	Index   *NGTIndex
 	Err     error
 }
 
@@ -243,16 +241,16 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 	defer rows.Close()
 
 	// Open as new NGTIndex
-	index, err := ngt.OpenIndex(idx.database)
+	closeIdx := true
+	index, err := NewNGTIndex(idx.database, idx.thread, 0)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
-	defer index.Close()
-
-	pair, err := newPair(idx.pair.file)
-	if err != nil {
-		return ApplicationResult{Key: idx.String(), Err: err}
-	}
+	defer func() {
+		if closeIdx {
+			index.Close()
+		}
+	}()
 
 	// Apply binlog
 	for rows.Next() {
@@ -266,12 +264,12 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 		}
 		switch action {
 		case DELETE:
-			if id, ok := pair.idFromKey(uint(key)); ok {
-				err := index.RemoveIndex(id.(uint))
+			if id, ok := index.pair.idFromKey(uint(key)); ok {
+				err := index.index.RemoveIndex(id.(uint))
 				if err != nil {
 					return ApplicationResult{Key: idx.String(), Err: err}
 				}
-				pair.removeByKey(uint(key))
+				index.pair.removeByKey(uint(key))
 			}
 		case UPDATE:
 			var f Feature
@@ -279,36 +277,38 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 			if err != nil {
 				return ApplicationResult{Key: idx.String(), Err: err}
 			}
-			newId, err := index.InsertIndex(f.W)
+			newId, err := index.index.InsertIndex(f.W)
 			if err != nil {
 				return ApplicationResult{Key: idx.String(), Err: err}
 			}
-			pair.addPair(uint(key), newId)
+			index.pair.addPair(uint(key), newId)
 		}
 	}
 
 	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))
-	err = pair.saveAs(tmpmap)
+	err = index.pair.saveAs(tmpmap)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
-	err = index.CreateIndex(idx.thread)
+	err = index.index.CreateIndex(idx.thread)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 	tmpdb := filepath.Join(tmp, path.Base(idx.database))
-	err = index.SaveIndex(tmpdb)
+	err = index.index.SaveIndex(tmpdb)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
 
 	rmTmp = false
+	closeIdx = false
 	return ApplicationResult{
 		Key:     idx.String(),
 		Current: current,
 		Base:    tmp,
 		DB:      tmpdb,
 		Map:     tmpmap,
+		Index:   &index,
 	}
 }
 

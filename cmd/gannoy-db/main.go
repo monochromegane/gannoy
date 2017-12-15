@@ -120,18 +120,16 @@ func main() {
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
 			key := dir.Name()
-			r := 0
-			if opts.BinLogInterval > 0 {
-				r = rand.Intn(opts.BinLogInterval)
-			}
 			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
 				thread,
-				time.Duration(opts.Timeout)*time.Second,
-				time.Duration(opts.BinLogInterval+r)*time.Second, // Shifting the execution time.
-				resultCh)
+				time.Duration(opts.Timeout)*time.Second)
 			if err != nil {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue
+			}
+			if opts.BinLogInterval > 0 {
+				r := rand.Intn(opts.BinLogInterval)
+				index.WaitApplyFromBinLog(time.Duration(opts.BinLogInterval+r)*time.Second, resultCh)
 			}
 			e.Logger.Infof("Database (%s) was successfully loaded", key)
 			databases[key] = index
@@ -159,17 +157,11 @@ func main() {
 				continue
 			}
 
-			index, err := gannoy.NewNGTIndex(filepath.Join(opts.DataDir, key),
-				thread,
-				time.Duration(opts.Timeout)*time.Second,
-				time.Duration(opts.BinLogInterval)*time.Second,
-				resultCh)
-			if err != nil {
-				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
-				continue
+			if opts.BinLogInterval > 0 {
+				result.Index.WaitApplyFromBinLog(time.Duration(opts.BinLogInterval)*time.Second, resultCh)
 			}
 			e.Logger.Infof("Database (%s) was successfully loaded", key)
-			databases[key] = index
+			databases[key] = *result.Index
 			current.Close()
 		}
 		exitCh <- struct{}{}

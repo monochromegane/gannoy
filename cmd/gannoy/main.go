@@ -96,7 +96,7 @@ func (c *DropCommand) Execute(args []string) error {
 		return fmt.Errorf("Database (%s) dose not exist.", database)
 	}
 
-	index, err := gannoy.NewNGTIndex(database, 1, 1, 0, make(chan gannoy.ApplicationResult))
+	index, err := gannoy.NewNGTIndex(database, 1, 1)
 	if err != nil {
 		return err
 	}
