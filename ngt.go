@@ -242,7 +242,7 @@ func (idx *NGTIndex) applyFromBinLog() ApplicationResult {
 
 	// Open as new NGTIndex
 	closeIdx := true
-	index, err := NewNGTIndex(idx.database, idx.thread, 0)
+	index, err := NewNGTIndex(idx.database, idx.thread, idx.timeout)
 	if err != nil {
 		return ApplicationResult{Key: idx.String(), Err: err}
 	}
