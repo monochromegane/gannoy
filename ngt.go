@@ -375,5 +375,9 @@ func (idx *NGTIndex) Drop() error {
 	if err != nil {
 		return err
 	}
+	err = idx.bin.Drop()
+	if err != nil {
+		return err
+	}
 	return os.RemoveAll(idx.database)
 }

@@ -2,6 +2,7 @@ package gannoy
 
 import (
 	"database/sql"
+	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -68,4 +69,9 @@ func (b BinLog) Count(current string) (int, error) {
 func (b BinLog) Clear(current string) error {
 	_, err := b.db.Exec(`delete from features where updated_at <= ?`, current)
 	return err
+}
+
+func (b BinLog) Drop() error {
+	b.Close()
+	return os.Remove(b.Path)
 }
