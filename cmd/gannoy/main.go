@@ -21,7 +21,7 @@ type Options struct {
 }
 
 type CreateCommand struct {
-	Dim      int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
+	Dim      int32  `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
 	Distance string `short:"D" long:"distance-function" description:"Specify distance function. [1: L1, 2: L2(default), a: angle, h: hamming]"`
 	Object   string `short:"o" long:"object-type" description:"Specify object type. [f: 4 bytes float(default), c: 1 byte integer]"`
 	Path     string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`

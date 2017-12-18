@@ -15,7 +15,7 @@ import (
 	ngt "github.com/monochromegane/go-ngt"
 )
 
-func NewConverter(from string, dim, thread int, order binary.ByteOrder) Converter {
+func NewConverter(from string, dim int32, thread int, order binary.ByteOrder) Converter {
 	if filepath.Ext(from) == ".csv" {
 		return csvConverter{
 			dim:    dim,
@@ -35,7 +35,7 @@ type Converter interface {
 }
 
 type converter struct {
-	dim    int
+	dim    int32
 	thread int
 	order  binary.ByteOrder
 }
@@ -159,7 +159,7 @@ func (c converter) initializeMaps(path string) (map[int]int, error) {
 }
 
 type csvConverter struct {
-	dim    int
+	dim    int32
 	thread int
 }
 

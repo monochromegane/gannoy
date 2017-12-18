@@ -193,7 +193,7 @@ func TestNGTIndexCancelWaitApplyFromBinLog(t *testing.T) {
 }
 
 func testCreateGraphAndTree(database string, dim int) NGTIndex {
-	property, _ := ngt.NewNGTProperty(dim)
+	property, _ := ngt.NewNGTProperty(int32(dim))
 	defer property.Free()
 	index, _ := CreateGraphAndTree(tempDatabaseDir(database), property)
 	return index
