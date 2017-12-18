@@ -1,8 +1,14 @@
 language: go
 go:
   - 1.9.2
+env:
+  - NGT_VERSION=1.2.0
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y cmake
+  - wget -q https://github.com/yahoojapan/NGT/archive/v${NGT_VERSION}.zip
+  - unzip v${NGT_VERSION}.zip
+  - mkdir build
+  - cd build && cmake .. && make && sudo make install
 script:
   - go test -v ./...
