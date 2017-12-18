@@ -6,7 +6,7 @@ env:
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y cmake
-  - cd /usr/local/src
+  - cd /tmp
   - wget -q https://github.com/yahoojapan/NGT/archive/v${NGT_VERSION}.zip
   - unzip v${NGT_VERSION}.zip
   - cd NGT-${NGT_VERSION}
