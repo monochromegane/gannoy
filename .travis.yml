@@ -6,9 +6,12 @@ env:
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y cmake
+  - cd /usr/local/src
   - wget -q https://github.com/yahoojapan/NGT/archive/v${NGT_VERSION}.zip
   - unzip v${NGT_VERSION}.zip
+  - cd NGT-${NGT_VERSION}
   - mkdir build
   - cd build && cmake .. && make && sudo make install
+  - cd ${TRAVIS_BUILD_DIR}
 script:
   - go test -v ./...
