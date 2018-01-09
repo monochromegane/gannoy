@@ -156,10 +156,6 @@ func main() {
 		"Drop database",
 		"The drop command drops the database.",
 		&dropCommand)
-	parser.AddCommand("save",
-		"Save database",
-		"The save command register the database saving job.",
-		&saveCommand)
 	parser.AddCommand("apply",
 		"Apply database",
 		"The apply command update the database.",

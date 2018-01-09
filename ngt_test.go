@@ -62,20 +62,8 @@ func TestNGTIndexAddAndDeleteItemByApplyBinlog(t *testing.T) {
 		t.Errorf("NGTIndex.UpdateBinLog should not return error, but return %v", err)
 	}
 
-	// Apply in memory
-	result := index.applyFromBinLog()
-	if result.Err != nil {
-		t.Errorf("NGTIndex.applyFromBinLog should not return error, but return %v", result.Err)
-	}
-
-	// Check
-	exist := result.Index.existItem(uint(key))
-	if !exist {
-		t.Errorf("NGTIndex.existItem should return true, but return false")
-	}
-
 	// Apply to file
-	err = index.ApplyToDB(result)
+	err = index.Apply()
 	if err != nil {
 		t.Errorf("NGTIndex.ApplyToDB should not return error, but return %v", err)
 	}
@@ -99,97 +87,21 @@ func TestNGTIndexAddAndDeleteItemByApplyBinlog(t *testing.T) {
 		t.Errorf("NGTIndex.UpdateBinLog should not return error, but return %v", err)
 	}
 
-	result = newIndex.applyFromBinLog()
-	if result.Err != nil {
-		t.Errorf("NGTIndex.applyFromBinLog should not return error, but return %v", result.Err)
+	err = newIndex.Apply()
+	if err != nil {
+		t.Errorf("NGTIndex.applyFromBinLog should not return error, but return %v", err)
 	}
 
-	keys, err = result.Index.SearchItem(uint(key), 1, 0.1)
+	newIndex2, err := NewNGTIndex(idx.database, 1, timeout)
+	if err != nil {
+		t.Errorf("NewNGTIndex should not return error, but return %v", err)
+	}
+	defer newIndex2.Drop()
+
+	keys, err = newIndex2.SearchItem(uint(key), 1, 0.1)
 	if err == nil {
 		t.Errorf("NGTIndex.RemoveItem should delete object, but dose not delete.")
 	}
-}
-
-func TestNGTIndexWaitApplyFromBinLog(t *testing.T) {
-	timeout := 30 * time.Second
-	idx := testCreateGraphAndTree("db", 5)
-	defer idx.Drop()
-	idx.Save()
-
-	index, err := NewNGTIndex(idx.database, 1, timeout)
-	if err != nil {
-		t.Errorf("NewNGTIndex should not return error, but return %v", err)
-	}
-	defer index.Drop()
-
-	// Wait applyFromBinLog
-	resultCh := make(chan ApplicationResult)
-	defer close(resultCh)
-	index.WaitApplyFromBinLog(1*time.Second, resultCh)
-
-	// Add
-	key := 1
-	features := []byte(`{"features":[0.0,0.0,0.0,0.0,0.0]}`)
-	err = index.UpdateBinLog(key, UPDATE, features)
-	if err != nil {
-		t.Errorf("NGTIndex.UpdateBinLog should not return error, but return %v", err)
-	}
-
-	// Check finish goroutine
-	ch := make(chan struct{})
-	defer close(ch)
-	go func() {
-		exit := <-index.exitCh
-		ch <- exit
-	}()
-
-	// Auto apply
-	for result := range resultCh {
-		keys, err := result.Index.SearchItem(uint(key), 1, 0.1)
-		if err != nil || len(keys) != 1 || keys[0] != key {
-			t.Errorf("NGTIndex.WaitApplyFromBinLog should register object, but dose not register.")
-		} else {
-			break
-		}
-	}
-
-	<-ch
-}
-
-func TestNGTIndexCancelWaitApplyFromBinLog(t *testing.T) {
-	timeout := 30 * time.Second
-	idx := testCreateGraphAndTree("db", 5)
-	defer idx.Drop()
-	idx.Save()
-
-	index, err := NewNGTIndex(idx.database, 1, timeout)
-	if err != nil {
-		t.Errorf("NewNGTIndex should not return error, but return %v", err)
-	}
-	defer index.Drop()
-
-	// Wait applyFromBinLog
-	resultCh := make(chan ApplicationResult)
-	defer close(resultCh)
-	index.WaitApplyFromBinLog(10*time.Second, resultCh)
-
-	// Add
-	key := 1
-	features := []byte(`{"features":[0.0,0.0,0.0,0.0,0.0]}`)
-	err = index.UpdateBinLog(key, UPDATE, features)
-	if err != nil {
-		t.Errorf("NGTIndex.UpdateBinLog should not return error, but return %v", err)
-	}
-
-	// Check finish goroutine
-	ch := make(chan struct{})
-	defer close(ch)
-	go func() {
-		exit := <-index.exitCh
-		ch <- exit
-	}()
-	index.cancel()
-	<-ch
 }
 
 func testCreateGraphAndTree(database string, dim int) NGTIndex {
