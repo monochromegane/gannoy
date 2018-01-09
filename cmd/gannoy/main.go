@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,7 +14,6 @@ import (
 var opts Options
 var createCommand CreateCommand
 var dropCommand DropCommand
-var saveCommand SaveCommand
 var applyCommand ApplyCommand
 
 type Options struct {
@@ -119,44 +117,6 @@ func (c *DropCommand) Execute(args []string) error {
 
 func (c *DropCommand) Usage() string {
 	return "[drop-OPTIONS] DATABASE"
-}
-
-type SaveCommand struct {
-	Host string `short:"H" long:"host" default:"localhost" description:"Specify gannoy-db hostname."`
-	Port int    `short:"P" long:"port" default:"1323" description:"Specify gannoy-db port number."`
-	All  bool   `short:"A" long:"all" description:"Save all databases."`
-}
-
-func (c *SaveCommand) Execute(args []string) error {
-	if !c.All && len(args) != 1 {
-		return fmt.Errorf("Database name not specified.")
-	}
-
-	req, err := http.NewRequest("PUT", c.url(args), nil)
-	if err != nil {
-		return err
-	}
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("Saving process was not accepted.")
-	}
-	return nil
-}
-
-func (c *SaveCommand) url(args []string) string {
-	url := fmt.Sprintf("http://%s:%d/savepoints", c.Host, c.Port)
-	if !c.All {
-		url += "/" + args[0]
-	}
-	return url
-}
-
-func (c *SaveCommand) Usage() string {
-	return "[save-OPTIONS] DATABASE"
 }
 
 type ApplyCommand struct {
