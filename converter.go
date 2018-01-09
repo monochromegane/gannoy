@@ -109,12 +109,7 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 			return err
 		}
 	}
-	result := index.applyFromBinLog()
-	if result.Err != nil {
-		return result.Err
-	}
-
-	return index.ApplyToDB(result)
+	return index.Apply()
 }
 
 func (c converter) offset(index int) int64 {
@@ -216,12 +211,7 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 		}
 	}
 
-	result := index.applyFromBinLog()
-	if result.Err != nil {
-		return result.Err
-	}
-
-	return index.ApplyToDB(result)
+	return index.Apply()
 }
 
 func f2b(fs []float64) []byte {

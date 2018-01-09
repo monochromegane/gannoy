@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -37,7 +36,6 @@ type Options struct {
 	MaxConnections    int    `short:"m" long:"max-connections" default:"200" description:"Specify the number of max connections."`
 	Thread            int    `short:"p" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`
 	Timeout           int    `short:"t" long:"timeout" default:"30" description:"Specify the number of seconds for timeout."`
-	BinLogInterval    int    `short:"i" long:"binlog-interval" default:"300" description:"Specify the number of seconds for application binlog interval."`
 	Config            string `short:"c" long:"config" default:"" description:"Configuration file path."`
 	Version           bool   `short:"v" long:"version" description:"Show version"`
 }
@@ -113,9 +111,6 @@ func main() {
 		thread = runtime.NumCPU()
 	}
 
-	resultCh := make(chan gannoy.ApplicationResult, len(dirs))
-	rand.Seed(time.Now().UnixNano())
-
 	databases := map[string]gannoy.NGTIndex{}
 	for _, dir := range dirs {
 		if isDatabaseDir(dir) {
@@ -127,45 +122,10 @@ func main() {
 				e.Logger.Warnf("Database (%s) loading failed. %s", key, err)
 				continue
 			}
-			if opts.BinLogInterval > 0 {
-				r := rand.Intn(opts.BinLogInterval)
-				index.WaitApplyFromBinLog(time.Duration(opts.BinLogInterval+r)*time.Second, resultCh)
-			}
 			e.Logger.Infof("Database (%s) was successfully loaded", key)
 			databases[key] = index
 		}
 	}
-
-	// auto application
-	exitCh := make(chan struct{})
-	go func() {
-		for result := range resultCh {
-			key := result.Key
-			if result.Err != nil {
-				if _, ok := result.Err.(gannoy.TargetNotExistError); ok {
-					continue
-				}
-				e.Logger.Warnf("Database (%s) application from binlog failed. %s", key, result.Err)
-				continue
-			}
-
-			// Switch database
-			current := databases[key]
-			err := current.ApplyToDB(result)
-			if err != nil {
-				e.Logger.Warnf("Database (%s) application to DB failed. %s", key, err)
-				continue
-			}
-
-			if opts.BinLogInterval > 0 {
-				result.Index.WaitApplyFromBinLog(time.Duration(opts.BinLogInterval)*time.Second, resultCh)
-			}
-			e.Logger.Infof("Database (%s) was successfully loaded", key)
-			databases[key] = *result.Index
-			current.Close()
-		}
-		exitCh <- struct{}{}
-	}()
 
 	// Define API
 	e.GET("/search", func(c echo.Context) error {
@@ -300,13 +260,6 @@ loop:
 	if err := e.Shutdown(ctx); err != nil {
 		e.Logger.Warn(err)
 	}
-
-	// Wait apply and switch binlog
-	for _, db := range databases {
-		db.Cancel()
-	}
-	close(resultCh)
-	<-exitCh
 
 	// Close databases
 	for _, db := range databases {
