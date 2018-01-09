@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/monochromegane/gannoy"
@@ -15,6 +16,7 @@ var opts Options
 var createCommand CreateCommand
 var dropCommand DropCommand
 var saveCommand SaveCommand
+var applyCommand ApplyCommand
 
 type Options struct {
 	Version bool `short:"v" long:"version" description:"Show version"`
@@ -157,6 +159,31 @@ func (c *SaveCommand) Usage() string {
 	return "[save-OPTIONS] DATABASE"
 }
 
+type ApplyCommand struct {
+	Path string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
+}
+
+func (c *ApplyCommand) Usage() string {
+	return "[apply-OPTIONS] DATABASE"
+}
+
+func (c *ApplyCommand) Execute(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("Database name not specified.")
+	}
+
+	database := filepath.Join(c.Path, args[0])
+	if _, err := os.Stat(database); err != nil {
+		return fmt.Errorf("Database (%s) dose not exist.", database)
+	}
+
+	index, err := gannoy.NewNGTIndexMeta(database, runtime.NumCPU(), 0)
+	if err != nil {
+		return err
+	}
+	return index.Apply()
+}
+
 func main() {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash) // exclude PrintError
 	parser.Name = "gannoy"
@@ -173,6 +200,10 @@ func main() {
 		"Save database",
 		"The save command register the database saving job.",
 		&saveCommand)
+	parser.AddCommand("apply",
+		"Apply database",
+		"The apply command update the database.",
+		&applyCommand)
 	_, err := parser.Parse()
 	if err != nil {
 		if opts.Version && err.(*flags.Error).Type == flags.ErrCommandRequired {

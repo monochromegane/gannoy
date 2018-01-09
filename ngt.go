@@ -53,6 +53,15 @@ func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, 
 	if err != nil {
 		return NGTIndex{}, err
 	}
+	ngtIndex, err := NewNGTIndexMeta(database, thread, timeout)
+	if err != nil {
+		return NGTIndex{}, err
+	}
+	ngtIndex.index = index
+	return ngtIndex, nil
+}
+
+func NewNGTIndexMeta(database string, thread int, timeout time.Duration) (NGTIndex, error) {
 	pair, err := newPair(database + ".map")
 	if err != nil {
 		return NGTIndex{}, err
@@ -64,7 +73,6 @@ func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, 
 	}
 	return NGTIndex{
 		database: database,
-		index:    index,
 		pair:     pair,
 		thread:   thread,
 		timeout:  timeout,
@@ -170,6 +178,104 @@ type ApplicationResult struct {
 	Map     string
 	Index   *NGTIndex
 	Err     error
+}
+
+func (idx *NGTIndex) Apply() error {
+	tmp, err := ioutil.TempDir("", "gannoy")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+
+	// Get current time
+	current := time.Now().Format("2006-01-02 15:04:05")
+
+	// Select from binlog where current time
+	cnt, err := idx.bin.Count(current)
+	if err != nil {
+		return err
+	} else if cnt == 0 {
+		return TargetNotExistError{}
+	}
+
+	rows, err := idx.bin.Get(current)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	// Open as new NGTIndex
+	index, err := NewNGTIndex(idx.database, idx.thread, idx.timeout)
+	if err != nil {
+		return err
+	}
+	defer index.Close()
+
+	// Apply from binlog
+	for rows.Next() {
+		var key int
+		var action int
+		var features []byte
+
+		err := rows.Scan(&key, &action, &features)
+		if err != nil {
+			return err
+		}
+		switch action {
+		case DELETE:
+			if id, ok := index.pair.idFromKey(uint(key)); ok {
+				err := index.index.RemoveIndex(id.(uint))
+				if err != nil {
+					return err
+				}
+				index.pair.removeByKey(uint(key))
+			}
+		case UPDATE:
+			var f Feature
+			err = json.Unmarshal(features, &f)
+			if err != nil {
+				return err
+			}
+			newId, err := index.index.InsertIndex(f.W)
+			if err != nil {
+				return err
+			}
+			index.pair.addPair(uint(key), newId)
+		}
+	}
+
+	tmpmap := filepath.Join(tmp, path.Base(idx.pair.file))
+	err = index.pair.saveAs(tmpmap)
+	if err != nil {
+		return err
+	}
+	err = index.index.CreateIndex(idx.thread)
+	if err != nil {
+		return err
+	}
+	tmpdb := filepath.Join(tmp, path.Base(idx.database))
+	err = index.index.SaveIndex(tmpdb)
+	if err != nil {
+		return err
+	}
+
+	// Apply to DB
+	err = os.Rename(tmpmap, idx.pair.file)
+	if err != nil {
+		return err
+	}
+	files, err := ioutil.ReadDir(tmpdb)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		err = os.Rename(filepath.Join(tmpdb, f.Name()), filepath.Join(idx.database, f.Name()))
+		if err != nil {
+			return err
+		}
+	}
+
+	return idx.bin.Clear(current)
 }
 
 func (idx *NGTIndex) ApplyFromBinLog(ctx context.Context) ApplicationResult {
