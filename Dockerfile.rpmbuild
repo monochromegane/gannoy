@@ -3,7 +3,7 @@ MAINTAINER dev.kuro.obi@gmail.com
 
 ENV VERSION 0.0.2
 ENV GO_VERSION 1.9
-ENV NGT_VERSION 1.2.0
+ENV NGT_VERSION 1.2.1
 
 RUN yum -y install wget git rpmdevtools yum-utils cmake
 RUN yum -y groupinstall "Development tools"
