@@ -2,7 +2,6 @@ data-dir = "/var/lib/gannoy"
 log-dir  = "/var/log/gannoy"
 lock-dir = "/var/run/gannoy"
 server-starter = true
-binlog-interval = 3600
 # timeout = 30
 # shutdown-timeout = 60
 # max-connections = 200

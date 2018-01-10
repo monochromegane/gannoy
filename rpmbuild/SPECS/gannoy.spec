@@ -20,6 +20,8 @@ Source2:   %{name}-db-%{version}
 Source3:   %{name}-db.toml
 Source4:   %{name}-db.service
 Source5:   %{name}-db.logrotate
+Source6:   %{name}-db.cron
+Source7:   %{name}-db.crontab
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %{?systemd_requires}
@@ -43,6 +45,8 @@ BuildRequires: systemd
 %{__install} -Dp -m0644 %{SOURCE3} %{buildroot}%{gannoy_confdir}/%{name}-db.toml
 %{__install} -Dp -m0644 %{SOURCE4} %{buildroot}/usr/lib/systemd/system/%{name}-db.service
 %{__install} -Dp -m0644 %{SOURCE5} %{buildroot}/etc/logrotate.d/%{name}-db
+%{__install} -Dp -m0700 %{SOURCE6} %{buildroot}/usr/bin/%{name}-db.cron
+%{__install} -Dp -m0600 %{SOURCE7} %{buildroot}/var/spool/cron/gannoy
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -68,6 +72,9 @@ systemctl enable %{name}-db.service
 %config(noreplace) %{gannoy_confdir}/%{name}-db.toml
 %config(noreplace) /etc/logrotate.d/%{name}-db
 %config(noreplace) /usr/lib/systemd/system/%{name}-db.service
+%config(noreplace) /var/spool/cron/%{gannoy_user}
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_rundir}
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_home}
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_logdir}
+%attr(-,%{gannoy_user},%{gannoy_group}) /usr/bin/%{name}-db.cron
+%attr(-,%{gannoy_user},%{gannoy_group}) /var/spool/cron/%{gannoy_user}

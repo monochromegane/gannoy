@@ -1,0 +1,23 @@
+#!/bin/bash
+
+DATA_DIR=/var/lib/gannoy
+
+if [ ! -d $DATA_DIR ]; then
+  exit 0
+fi
+
+LOCKFILE=/var/run/gannoy/gannoy-db.cron.lock
+[[ -f $LOCKFILE ]] && exit 0
+
+trap "{ rm -f $LOCKFILE ; exit 0; }" EXIT
+touch $LOCKFILE
+
+for f in `find $DATA_DIR -type d`
+do
+  [ $f = $DATA_DIR ] && continue
+  gannoy apply -p $DATA_DIR `basename $f`
+done
+
+/bin/kill -HUP `cat /var/run/gannoy/server_starter.pid`
+
+exit 0
