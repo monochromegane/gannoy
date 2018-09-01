@@ -12,7 +12,7 @@ $ gannoy create -d 100 DATABASE_NAME
 $ gannoy-db
 ```
 
-Regiter features using gannoy API.
+Register features using gannoy API.
 
 ```sh
 $ curl 'http://localhost:1323/databases/DATABASE_NAME/features/KEY' \
