@@ -9,7 +9,7 @@
 Summary: Approximate nearest neighbor search server and dynamic index written in Golang.
 Name:    gannoy
 Version: 0.0.2
-Release: 3
+Release: 4
 License: MIT
 Group:   Applications/System
 URL:     https://github.com/monochromegane/gannoy
@@ -22,6 +22,7 @@ Source4:   %{name}-db.service
 Source5:   %{name}-db.logrotate
 Source6:   %{name}-db.cron
 Source7:   %{name}-db.crontab
+Source8:   %{name}.conf
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 %{?systemd_requires}
@@ -47,6 +48,7 @@ BuildRequires: systemd
 %{__install} -Dp -m0644 %{SOURCE5} %{buildroot}/etc/logrotate.d/%{name}-db
 %{__install} -Dp -m0700 %{SOURCE6} %{buildroot}/usr/bin/%{name}-db.cron
 %{__install} -Dp -m0600 %{SOURCE7} %{buildroot}/var/spool/cron/gannoy
+%{__install} -Dp -m0644 %{SOURCE8} %{buildroot}/usr/lib/tmpfiles.d/%{name}.conf
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -73,6 +75,7 @@ systemctl enable %{name}-db.service
 %config(noreplace) /etc/logrotate.d/%{name}-db
 %config(noreplace) /usr/lib/systemd/system/%{name}-db.service
 %config(noreplace) /var/spool/cron/%{gannoy_user}
+%config(noreplace) /usr/lib/tmpfiles.d/%{name}.conf
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_rundir}
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_home}
 %attr(-,%{gannoy_user},%{gannoy_group}) %dir %{gannoy_logdir}
