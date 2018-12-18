@@ -42,5 +42,6 @@ RUN go build -o /root/rpmbuild/SOURCES/gannoy-${VERSION} cmd/gannoy/main.go && \
 WORKDIR /root
 ADD rpmbuild/SPECS/gannoy.spec /root/rpmbuild/SPECS/gannoy.spec
 ADD rpmbuild/SOURCES/gannoy-* /root/rpmbuild/SOURCES/
+ADD rpmbuild/SOURCES/gannoy.conf /root/rpmbuild/SOURCES/
 RUN rpmbuild -bb /root/rpmbuild/SPECS/gannoy.spec
 # RUN rpm -ivh /root/rpmbuild/RPMS/x86_64/gannoy-${VERSION}-2.x86_64.rpm
