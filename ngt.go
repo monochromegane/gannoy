@@ -10,23 +10,19 @@ import (
 	"path/filepath"
 	"time"
 
-	ngt "github.com/monochromegane/go-ngt"
+	ngt "github.com/yahoojapan/gongt"
 )
 
 type NGTIndex struct {
 	database string
-	index    ngt.NGTIndex
+	index    *ngt.NGT
 	pair     Pair
 	thread   int
 	timeout  time.Duration
 	bin      BinLog
 }
 
-func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, error) {
-	index, err := ngt.CreateGraphAndTree(database, property)
-	if err != nil {
-		return NGTIndex{}, err
-	}
+func CreateGraphAndTree(database string, index *ngt.NGT) (NGTIndex, error) {
 	pair, err := newPair(database + ".map")
 	if err != nil {
 		return NGTIndex{}, err
@@ -38,7 +34,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 	}
 	idx := NGTIndex{
 		database: database,
-		index:    index,
+		index:    index.Open(),
 		pair:     pair,
 		bin:      bin,
 	}
@@ -46,10 +42,7 @@ func CreateGraphAndTree(database string, property ngt.NGTProperty) (NGTIndex, er
 }
 
 func NewNGTIndex(database string, thread int, timeout time.Duration) (NGTIndex, error) {
-	index, err := ngt.OpenIndex(database)
-	if err != nil {
-		return NGTIndex{}, err
-	}
+	index := ngt.New(database).Open()
 	ngtIndex, err := NewNGTIndexMeta(database, thread, timeout)
 	if err != nil {
 		return NGTIndex{}, err
@@ -86,7 +79,7 @@ type searchResult struct {
 	err error
 }
 
-func (idx *NGTIndex) SearchItem(key uint, limit int, epsilon float32) ([]int, error) {
+func (idx *NGTIndex) SearchItem(key uint, limit int, epsilon float64) ([]int, error) {
 	resultCh := make(chan searchResult, 1)
 	go func() {
 		ids, err := idx.GetNnsByKey(key, limit, epsilon)
@@ -97,7 +90,7 @@ func (idx *NGTIndex) SearchItem(key uint, limit int, epsilon float32) ([]int, er
 	return result.ids, result.err
 }
 
-func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error) {
+func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float64) ([]int, error) {
 	if id, ok := idx.pair.idFromKey(key); !ok {
 		return nil, fmt.Errorf("Not found")
 	} else {
@@ -119,11 +112,11 @@ func (idx *NGTIndex) GetNnsByKey(key uint, n int, epsilon float32) ([]int, error
 	}
 }
 
-func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float32) ([]int, error) {
+func (idx *NGTIndex) GetAllNns(v []float64, n int, epsilon float64) ([]int, error) {
 	results, err := idx.index.Search(v, n, epsilon)
 	ids := make([]int, len(results))
 	for i, result := range results {
-		ids[i] = int(result.Id)
+		ids[i] = int(result.ID)
 	}
 	return ids, newNGTSearchErrorFrom(err)
 }
@@ -180,7 +173,7 @@ func (idx *NGTIndex) Apply() error {
 		switch action {
 		case DELETE:
 			if id, ok := index.pair.idFromKey(uint(key)); ok {
-				err := index.index.RemoveIndex(id.(uint))
+				err := index.index.StrictRemove(id.(uint))
 				if err != nil {
 					return err
 				}
@@ -192,7 +185,7 @@ func (idx *NGTIndex) Apply() error {
 			if err != nil {
 				return err
 			}
-			newId, err := index.index.InsertIndex(f.W)
+			newId, err := index.index.StrictInsert(f.W)
 			if err != nil {
 				return err
 			}
@@ -210,7 +203,8 @@ func (idx *NGTIndex) Apply() error {
 		return err
 	}
 	tmpdb := filepath.Join(tmp, path.Base(idx.database))
-	err = index.index.SaveIndex(tmpdb)
+	index.index.SetIndexPath(tmpdb)
+	err = index.index.SaveIndex()
 	if err != nil {
 		return err
 	}
@@ -239,7 +233,7 @@ func (idx *NGTIndex) Save() error {
 	if err != nil {
 		return err
 	}
-	return idx.index.SaveIndex(idx.database)
+	return idx.index.SaveIndex()
 }
 
 func (idx *NGTIndex) searchWithTimeout(resultCh chan searchResult) searchResult {
@@ -254,20 +248,16 @@ func (idx *NGTIndex) searchWithTimeout(resultCh chan searchResult) searchResult 
 }
 
 func (idx *NGTIndex) getItem(id uint) ([]float64, error) {
-	o, err := idx.index.GetObjectSpace()
+	v, err := idx.index.GetStrictVector(id)
 	if err != nil {
 		return []float64{}, err
 	}
 
-	obj, err := o.GetObjectAsFloat(int(id))
-	if err != nil {
-		return []float64{}, err
+	ret := make([]float64, len(v))
+	for i, o := range v {
+		ret[i] = float64(o)
 	}
-	v := make([]float64, len(obj))
-	for i, o := range obj {
-		v[i] = float64(o)
-	}
-	return v, nil
+	return ret, nil
 }
 
 func (idx *NGTIndex) existItem(id uint) bool {
@@ -279,12 +269,13 @@ func (idx *NGTIndex) existItem(id uint) bool {
 }
 
 func (idx *NGTIndex) Close() {
-	idx.index.Close()
+	if idx.index != nil {
+		idx.index.Close()
+	}
 	idx.bin.Close()
 }
 
 func (idx *NGTIndex) Drop() error {
-	idx.Close()
 	err := idx.pair.drop()
 	if err != nil {
 		return err

@@ -11,7 +11,7 @@ import (
 )
 
 type Options struct {
-	Dim     int32  `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
+	Dim     int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
 	Path    string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
 	Maps    string `short:"m" long:"map-path" default:"" description:"Specify key and index mapping CSV file, if exist."`
 	Thread  int    `short:"t" long:"thread" default-mask:"runtime.NumCPU()" description:"Specify number of thread."`

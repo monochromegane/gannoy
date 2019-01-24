@@ -6,14 +6,12 @@ import (
 	"testing"
 	"time"
 
-	ngt "github.com/monochromegane/go-ngt"
+	ngt "github.com/yahoojapan/gongt"
 )
 
 func TestCreateGraphAndTree(t *testing.T) {
-	property, _ := ngt.NewNGTProperty(1)
-	defer property.Free()
-
-	index, err := CreateGraphAndTree(tempDatabaseDir("db"), property)
+	database := tempDatabaseDir("db")
+	index, err := CreateGraphAndTree(database, ngt.New(database))
 	if err != nil {
 		t.Errorf("CreateGraphAndTree should not return error, but return %v", err)
 	}
@@ -105,9 +103,8 @@ func TestNGTIndexAddAndDeleteItemByApplyBinlog(t *testing.T) {
 }
 
 func testCreateGraphAndTree(database string, dim int) NGTIndex {
-	property, _ := ngt.NewNGTProperty(int32(dim))
-	defer property.Free()
-	index, _ := CreateGraphAndTree(tempDatabaseDir(database), property)
+	path := tempDatabaseDir(database)
+	index, _ := CreateGraphAndTree(path, ngt.New(path).SetDimension(dim))
 	return index
 }
 

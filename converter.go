@@ -12,10 +12,10 @@ import (
 	"strings"
 	"syscall"
 
-	ngt "github.com/monochromegane/go-ngt"
+	ngt "github.com/yahoojapan/gongt"
 )
 
-func NewConverter(from string, dim int32, thread int, order binary.ByteOrder) Converter {
+func NewConverter(from string, dim int, thread int, order binary.ByteOrder) Converter {
 	if filepath.Ext(from) == ".csv" {
 		return csvConverter{
 			dim:    dim,
@@ -35,7 +35,7 @@ type Converter interface {
 }
 
 type converter struct {
-	dim    int32
+	dim    int
 	thread int
 	order  binary.ByteOrder
 }
@@ -55,8 +55,7 @@ func (c converter) Convert(from, path, to, mapPath string) error {
 		}
 	}
 
-	property, _ := ngt.NewNGTProperty(c.dim)
-	index, err := CreateGraphAndTree(filepath.Join(path, to), property)
+	index, err := CreateGraphAndTree(filepath.Join(path, to), ngt.New(filepath.Join(path, to)).SetDimension(c.dim))
 	if err != nil {
 		return err
 	}
@@ -154,7 +153,7 @@ func (c converter) initializeMaps(path string) (map[int]int, error) {
 }
 
 type csvConverter struct {
-	dim    int32
+	dim    int
 	thread int
 }
 
@@ -165,8 +164,7 @@ func (c csvConverter) Convert(from, path, to, mapPath string) error {
 	}
 	defer file.Close()
 
-	property, _ := ngt.NewNGTProperty(c.dim)
-	index, err := CreateGraphAndTree(filepath.Join(path, to), property)
+	index, err := CreateGraphAndTree(filepath.Join(path, to), ngt.New(filepath.Join(path, to)).SetDimension(c.dim))
 	if err != nil {
 		return err
 	}

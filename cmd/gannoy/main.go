@@ -8,7 +8,8 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 	"github.com/monochromegane/gannoy"
-	ngt "github.com/monochromegane/go-ngt"
+
+	ngt "github.com/yahoojapan/gongt"
 )
 
 var opts Options
@@ -21,7 +22,7 @@ type Options struct {
 }
 
 type CreateCommand struct {
-	Dim      int32  `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
+	Dim      int    `short:"d" long:"dim" default:"2" description:"Specify size of feature dimention."`
 	Distance string `short:"D" long:"distance-function" description:"Specify distance function. [1: L1, 2: L2(default), a: angle, h: hamming]"`
 	Object   string `short:"o" long:"object-type" description:"Specify object type. [f: 4 bytes float(default), c: 1 byte integer]"`
 	Path     string `short:"p" long:"path" default:"." description:"Build meta file into this directory."`
@@ -37,44 +38,41 @@ func (c *CreateCommand) Execute(args []string) error {
 		return fmt.Errorf("Database (%s) already exists.", database)
 	}
 
-	property, err := ngt.NewNGTProperty(c.Dim)
-	if err != nil {
-		return err
-	}
-	defer property.Free()
+	idx := ngt.New(database)
 
+	idx.SetDimension(c.Dim)
 	if c.Distance != "" {
-		distanceType := ngt.DistanceTypeNone
+		distanceType := ngt.DistanceNone
 		switch c.Distance {
 		case "1":
-			distanceType = ngt.DistanceTypeL1
+			distanceType = ngt.L1
 		case "2":
-			distanceType = ngt.DistanceTypeL2
+			distanceType = ngt.L2
 		case "a":
-			distanceType = ngt.DistanceTypeAngle
+			distanceType = ngt.Angle
 		case "h":
-			distanceType = ngt.DistanceTypeHamming
+			distanceType = ngt.Hamming
 		}
-		property.SetDistanceType(distanceType)
+		idx.SetDistanceType(distanceType)
 	}
 
 	if c.Object != "" {
-		objectType := ngt.ObjectTypeNone
+		objectType := ngt.ObjectNone
 		switch c.Object {
 		case "f":
-			objectType = ngt.ObjectTypeFloat
+			objectType = ngt.Float
 		case "c":
-			objectType = ngt.ObjectTypeUint8
+			objectType = ngt.Uint8
 		}
-		property.SetObjectType(objectType)
+		idx.SetObjectType(objectType)
 	}
 
-	index, err := gannoy.CreateGraphAndTree(filepath.Join(c.Path, args[0]), property)
+	index, err := gannoy.CreateGraphAndTree(filepath.Join(c.Path, args[0]), idx)
 	if err != nil {
 		return err
 	}
 	defer index.Close()
-	return index.Save()
+	return nil
 }
 
 func (c *CreateCommand) Usage() string {
@@ -96,7 +94,7 @@ func (c *DropCommand) Execute(args []string) error {
 		return fmt.Errorf("Database (%s) dose not exist.", database)
 	}
 
-	index, err := gannoy.NewNGTIndex(database, 1, 1)
+	index, err := gannoy.NewNGTIndexMeta(database, 1, 1)
 	if err != nil {
 		return err
 	}
@@ -113,6 +111,7 @@ func (c *DropCommand) Execute(args []string) error {
 		index.Close()
 		return nil
 	}
+	return nil
 }
 
 func (c *DropCommand) Usage() string {
