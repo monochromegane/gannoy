@@ -17,7 +17,7 @@ import (
 
 	"golang.org/x/net/netutil"
 
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/gommon/log"
@@ -154,12 +154,9 @@ loop:
 	}
 
 	// Define API
-	e.GET("/search", func(c echo.Context) error {
-		database := c.QueryParam("database")
-		if _, ok := databases[database]; !ok {
-			return c.NoContent(http.StatusNotFound)
-		}
-		key, err := strconv.Atoi(c.QueryParam("key"))
+	e.GET("/search/:database/:key", func(c echo.Context) error {
+		database := c.Param("database")
+		key, err := strconv.Atoi(c.Param("key"))
 		if err != nil {
 			key = -1
 		}
@@ -168,13 +165,35 @@ loop:
 			limit = 10
 		}
 
-		gannoy := databases[database]
-		r, err := gannoy.GetNnsByKey(key, limit, -1)
-		if err != nil || len(r) == 0 {
-			return c.NoContent(http.StatusNotFound)
+		if gannoy, ok := databases[database]; ok {
+			if r, err := gannoy.GetNnsByKey(key, limit, -1); err == nil {
+				return c.JSON(http.StatusOK, r)
+			} else {
+				return c.JSON(http.StatusOK, err)
+			}
 		}
 
-		return c.JSON(http.StatusOK, r)
+		return c.NoContent(http.StatusNotFound)
+	})
+
+	e.POST("/search/:database", func(c echo.Context) error {
+		database := c.Param("database")
+		feature := new(Feature)
+		if err := c.Bind(feature); err != nil {
+			return err
+		}
+		limit, err := strconv.Atoi(c.QueryParam("limit"))
+		if err != nil {
+			limit = 10
+		}
+		if gannoy, ok := databases[database]; ok {
+			if r, err := gannoy.GetAllNns(feature.W, limit, -1); err == nil {
+				return c.JSON(http.StatusOK, r)
+			} else {
+				return c.JSON(http.StatusOK, err)
+			}
+		}
+		return c.NoContent(http.StatusNotFound)
 	})
 
 	e.POST("/databases/:database/features", func(c echo.Context) error {
@@ -236,7 +255,8 @@ loop:
 	})
 
 	e.GET("/health", func(c echo.Context) error {
-		return c.NoContent(http.StatusOK)
+		return c.JSON(http.StatusOK, databases)
+		//return c.NoContent(http.StatusOK)
 	})
 
 	// Start server

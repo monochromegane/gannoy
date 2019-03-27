@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"testing"
 )
-
-func TestAngularMargin(t *testing.T) {
-	angular := Angular{}
-	node := Node{v: []float64{1, 2, 3}}
-	y := []float64{1, 2, 3}
-	dot := angular.margin(node, y)
-	expect := 14.0
-	if dot != expect {
-		t.Errorf("Angular margin should return %d, but %d", expect, dot)
-	}
-}
+//
+//func TestAngularMargin(t *testing.T) {
+//	angular := Angular{}
+//	node := Node{v: []float64{1, 2, 3}}
+//	y := []float64{1, 2, 3}
+//	dot := angular.margin(node, y)
+//	expect := 14.0
+//	if dot != expect {
+//		t.Errorf("Angular margin should return %d, but %d", expect, dot)
+//	}
+//}
 
 func TestAngularSide(t *testing.T) {
 	angular := Angular{}

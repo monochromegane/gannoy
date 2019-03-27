@@ -1,6 +1,6 @@
 package gannoy
 
-func HeapSort(array []sorter, order, last int) {
+func HeapSort(array []Sorter, order, last int) {
 	var heapifier heapifier
 	switch order {
 	case ASC:
@@ -13,21 +13,21 @@ func HeapSort(array []sorter, order, last int) {
 }
 
 type heapifier interface {
-	heapify([]sorter, int, int)
+	heapify([]Sorter, int, int)
 }
 
-type heapifyFunc func([]sorter, int, int)
+type heapifyFunc func([]Sorter, int, int)
 
-func (f heapifyFunc) heapify(array []sorter, root, length int) {
+func (f heapifyFunc) heapify(array []Sorter, root, length int) {
 	f(array, root, length)
 }
 
-type sorter struct {
-	id    int
-	value float64
+type Sorter struct {
+	Id    int
+	Value float64
 }
 
-func heapSort(heapifier heapifier, array []sorter, last int) {
+func heapSort(heapifier heapifier, array []Sorter, last int) {
 	// initialize
 	for i := len(array) / 2; i >= 0; i-- {
 		heapifier.heapify(array, i, len(array))
@@ -45,16 +45,16 @@ func heapSort(heapifier heapifier, array []sorter, last int) {
 	}
 }
 
-func downHeapify(array []sorter, root, length int) {
+func downHeapify(array []Sorter, root, length int) {
 	max := root
 	l := (root * 2) + 1
 	r := l + 1
 
-	if l < length && array[l].value > array[max].value {
+	if l < length && array[l].Value > array[max].Value {
 		max = l
 	}
 
-	if r < length && array[r].value > array[max].value {
+	if r < length && array[r].Value > array[max].Value {
 		max = r
 	}
 
@@ -64,16 +64,16 @@ func downHeapify(array []sorter, root, length int) {
 	}
 }
 
-func upHeapify(array []sorter, root, length int) {
+func upHeapify(array []Sorter, root, length int) {
 	min := root
 	l := (root * 2) + 1
 	r := l + 1
 
-	if l < length && array[l].value < array[min].value {
+	if l < length && array[l].Value < array[min].Value {
 		min = l
 	}
 
-	if r < length && array[r].value < array[min].value {
+	if r < length && array[r].Value < array[min].Value {
 		min = r
 	}
 
