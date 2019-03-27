@@ -23,7 +23,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/lestrrat/go-server-starter/listener"
 	"github.com/monochromegane/conflag"
-	"github.com/longkeyy/gannoy"
+	"github.com/monochromegane/gannoy"
 	"github.com/nightlyone/lockfile"
 )
 
