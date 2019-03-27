@@ -10,7 +10,7 @@ func TestHeapSortAsc(t *testing.T) {
 
 	expects := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	for i, expect := range expects {
-		if array[i].value != expect {
+		if array[i].Value != expect {
 			t.Errorf("Sorted array should be %v, but %v.", expects, array)
 			break
 		}
@@ -23,7 +23,7 @@ func TestHeapSortAscPartial(t *testing.T) {
 
 	expects := []float64{7, 8, 9}
 	for i, expect := range expects {
-		if array[6:][i].value != expect {
+		if array[6:][i].Value != expect {
 			t.Errorf("Sorted array should be %v, but %v.", expects, array)
 			break
 		}
@@ -36,7 +36,7 @@ func TestHeapSortDesc(t *testing.T) {
 
 	expects := []float64{9, 8, 7, 6, 5, 4, 3, 2, 1}
 	for i, expect := range expects {
-		if array[i].value != expect {
+		if array[i].Value != expect {
 			t.Errorf("Sorted array should be %v, but %v.", expects, array)
 			break
 		}
@@ -49,13 +49,13 @@ func TestHeapSortDescPartial(t *testing.T) {
 
 	expects := []float64{3, 2, 1}
 	for i, expect := range expects {
-		if array[6:][i].value != expect {
+		if array[6:][i].Value != expect {
 			t.Errorf("Sorted array should be %v, but %v.", expects, array)
 			break
 		}
 	}
 }
 
-func testSortArray() []sorter {
-	return []sorter{{value: 5}, {value: 4}, {value: 9}, {value: 2}, {value: 1}, {value: 8}, {value: 7}, {value: 6}, {value: 3}}
+func testSortArray() []Sorter {
+	return []Sorter{{Value: 5}, {Value: 4}, {Value: 9}, {Value: 2}, {Value: 1}, {Value: 8}, {Value: 7}, {Value: 6}, {Value: 3}}
 }
